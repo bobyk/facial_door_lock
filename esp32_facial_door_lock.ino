@@ -1,3 +1,8 @@
+// Плата: ESP32-S3 (Arduino IDE, Tools > Board: "ESP32S3 Dev Module" або відповідна super mini).
+// Бібліотеки через Library Manager (Sketch > Include Library > Manage Libraries):
+//   - RTClib (Adafruit)
+//   - FastLED
+//   - VL53L1X (Pololu)
 #include <Arduino.h>
 #include <Wire.h>
 #include "Config.h"
