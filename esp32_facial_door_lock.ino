@@ -29,7 +29,7 @@ LD2420PresenceSensor outerPresence(Serial2, RADAR_RX_PIN, RADAR_TX_PIN);
 // Внутрішній датчик - ToF (VL53L1X), вузький кут огляду, фізично не бачить крізь стіни.
 // Єдиний VL53L1X на I2C-шині - конфлікту адрес 0x29 немає (зовнішній сенсор не на I2C).
 ToFPresenceSensor innerPresence(PRESENCE_THRESHOLD_MM);
-FRM1213Recognizer face(Serial1, 115200);
+FRM1213Recognizer face(Serial1, FACE_RX_PIN, FACE_TX_PIN);
 CronScheduler autoLockCron;
 
 LockController lock(outerPresence, innerPresence, face, keypad, led, actuator, "1234");
