@@ -148,9 +148,10 @@ flash peak on OUTER.
    INNER finalizes (sets `paired=true`, resets counter/generation to 0) only
    after receiving that reply - if it never arrives, nothing is persisted on
    either side and the previous key (if any) stays in effect.
-4. Optional, same window: on OUTER's keypad, enter a 6-digit PIN and press
+4. Optional, same window: on OUTER's keypad, enter a 4-digit PIN and press
    `#`. Its SHA-256 hash is sent to INNER and stored, enabling the PIN
-   fallback path (used after 3 failed face-recognition attempts).
+   fallback path (used after 3 failed face-recognition attempts, or usable
+   directly - see "Keypad behaviour" below).
 5. If the window closes without a completed exchange, repeat from step 1.
 6. Re-pairing later (e.g. replacing a board) uses the same procedure - the
    `paired` flag never reopens on its own; only a deliberate boot-time button
@@ -161,3 +162,30 @@ itself. That's a separate, module-specific operation (not implemented here -
 only VERIFY/RESET are wired up per the driver requirements) and would need
 its own tool/flow before face-based unlock works end to end. PIN-based unlock
 works immediately after pairing if a PIN was set in step 4.
+
+## Keypad behaviour
+
+Outside the pairing window, OUTER's keypad is polled continuously regardless
+of FSM state (`OuterController::handleKeypad()`), not just after face-scan
+failures:
+
+- Entering 4 digits auto-submits an authorization round (`PIN_SENTINEL_ID`)
+  the moment the 4th digit is typed - no `#` needed to confirm.
+- `*` clears whatever has been typed so far, so a mistyped digit doesn't
+  require restarting from the physical device.
+- `#` sends an unauthenticated `MSG_LOCK_CLOSE` to INNER, which drives
+  `LockDriver::close()` immediately. It works in every state (even mid-lockout)
+  since relocking only tightens security and needs no challenge/response.
+- Two independent PINs unlock: the static one set during pairing (step 4),
+  and a daily backup code derived from INNER's RTC with no persisted state -
+  `4` + day-of-month (2 digits, zero-padded) + `9` (e.g. the 9th -> `4099`,
+  the 21st -> `4219`). Either one succeeds. This backup code is guessable by
+  anyone who knows the scheme and today's date (~31 possibilities) - it's a
+  convenience fallback, not a substitute for the static PIN or face auth.
+- Escalating lockout: after 3 consecutive failed PIN attempts, OUTER blocks
+  further keypad PIN entry (RAM-only, resets on reboot) for 1 minute; if 3
+  more fail once it reopens, the block doubles (2 min, then 4, 8...). It
+  resets to the base 1-minute tier after any successful unlock. This is
+  separate from INNER's own unauthenticated-request rate limiter
+  (`RATE_LIMIT_MAX_FAILS`/`RATE_LIMIT_BLOCK_MS` in `inner/config.h`), which
+  still applies underneath regardless of source (face or PIN).

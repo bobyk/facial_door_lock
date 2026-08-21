@@ -18,6 +18,9 @@
 //   MSG_HEARTBEAT  : no payload - OUTER -> INNER, periodic liveness signal.
 //   MSG_PING/PONG  : no payload - boot-time transport probe only (see TransportProbe.h), never
 //                                 used once a session is running under a chosen transport.
+//   MSG_LOCK_CLOSE : no payload - OUTER -> INNER, '#' pressed on keypad outside pairing/PIN-setup
+//                                 context. Unauthenticated one-way signal like MSG_TAMPER - relocking
+//                                 only tightens security, so it doesn't need the REQ/NONCE/AUTH round.
 enum : uint8_t {
     MSG_REQ = 0x01,
     MSG_NONCE = 0x02,
@@ -30,12 +33,13 @@ enum : uint8_t {
     MSG_HEARTBEAT = 0x09,
     MSG_PING = 0x0A,
     MSG_PONG = 0x0B,
+    MSG_LOCK_CLOSE = 0x0C,
 };
 
 static constexpr uint8_t NONCE_LEN = 8;
 static constexpr uint8_t TAG_LEN = 8;
 static constexpr uint8_t KEY_LEN = 32;
-static constexpr uint8_t PIN_LEN = 6; // довжина PIN у цифрах
+static constexpr uint8_t PIN_LEN = 4; // довжина PIN у цифрах
 
 // Зарезервований id, що позначає "це PIN-авторизація, не обличчя" в AUTH-повідомленні.
 // Реальні face_id від FRM1213 лежать в 1..100 (див. Face count у даташиті), тож 0xFF безпечний.

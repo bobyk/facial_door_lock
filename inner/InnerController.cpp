@@ -74,6 +74,10 @@ void InnerController::update() {
         handleTamper();
         return; // тампер - найвищий пріоритет цього тіку
     }
+    if (got && type == MSG_LOCK_CLOSE) {
+        handleLockClose(); // не авторизується і не залежить від _state - лише затягує замок
+        return;
+    }
 
     switch (_state) {
         case State::PAIRING:
@@ -154,6 +158,20 @@ void InnerController::handleReq() {
     _state = State::AWAITING_AUTH;
 }
 
+void InnerController::handleLockClose() {
+    logEvent("close requested from OUTER keypad (#)");
+    _lock.close();
+}
+
+// Резервний денний код, незалежний від пари під час паринга: "4" + день місяця
+// (2 цифри, з нулем) + "9", напр. 9 число -> {4,0,9,9}. Прив'язаний до PIN_LEN==4.
+void InnerController::buildDailyPin(uint8_t day, uint8_t out[PIN_LEN]) {
+    out[0] = 4;
+    out[1] = day / 10;
+    out[2] = day % 10;
+    out[3] = 9;
+}
+
 void InnerController::registerFailure(const char* reason) {
     _consecutiveFails++;
     logEvent(reason);
@@ -180,13 +198,24 @@ void InnerController::handleAuth(const uint8_t* payload, uint8_t len) {
         return;
     }
     if (auth.id == PIN_SENTINEL_ID) {
-        if (!_nvs.hasPinHash()) { registerFailure("AUTH rejected: no PIN configured"); return; }
-        uint8_t pinHash[32];
-        _crypto.sha256(auth.pin, PIN_LEN, pinHash);
-        if (!constantTimeEqual(pinHash, _nvs.pinHash(), sizeof(pinHash))) {
+        // Два незалежні шляхи - будь-який зі збігів приймається: статичний PIN
+        // (заданий під час паринга) АБО денний резервний код з RTC (buildDailyPin).
+        bool matchStatic = false;
+        if (_nvs.hasPinHash()) {
+            uint8_t pinHash[32];
+            _crypto.sha256(auth.pin, PIN_LEN, pinHash);
+            matchStatic = constantTimeEqual(pinHash, _nvs.pinHash(), sizeof(pinHash));
+        }
+
+        uint8_t dailyPin[PIN_LEN];
+        buildDailyPin(_rtc.day(), dailyPin);
+        bool matchDaily = constantTimeEqual(auth.pin, dailyPin, PIN_LEN);
+
+        if (!matchStatic && !matchDaily) {
             registerFailure("AUTH rejected: bad PIN");
             return;
         }
+        logEvent(matchStatic ? "PIN matched (static)" : "PIN matched (daily backup code)");
     }
 
     // Лічильник - глобальний, не прив'язаний до транспорту (nvs.counter()), тож

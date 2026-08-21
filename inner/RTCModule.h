@@ -9,6 +9,7 @@ public:
     bool begin();
     // Формат "YYYY-MM-DD hh:mm:ss" у переданий буфер (мін. 20 байт).
     void formatTimestamp(char* out, size_t outLen);
+    uint8_t day(); // 1..31, або 0 якщо RTC недоступний
 
 private:
     RTC_DS3231 _rtc;

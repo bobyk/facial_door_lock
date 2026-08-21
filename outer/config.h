@@ -62,3 +62,7 @@
 
 // --- Behaviour ---
 #define MAX_FACE_ATTEMPTS 3 // consecutive face-scan failures before falling back to PIN entry
+
+// --- Keypad PIN lockout (escalating, RAM-only - resets on reboot like INNER's own rate limit) ---
+#define PIN_LOCKOUT_MAX_FAILS 3        // failed PIN attempts before the keypad locks out
+#define PIN_LOCKOUT_BASE_MS (60UL * 1000) // 1st lockout = 1 min, doubles each time it re-triggers

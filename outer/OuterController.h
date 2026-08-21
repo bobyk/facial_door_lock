@@ -51,6 +51,10 @@ private:
     uint8_t _pinBuf[PIN_LEN];
     uint8_t _pinEntryLen = 0;
 
+    uint8_t _pinFailCount = 0;      // послідовні невдалі спроби PIN (окремо від _faceFailCount)
+    uint8_t _pinLockoutLevel = 0;   // множник ескалації: блок = PIN_LOCKOUT_BASE_MS << level
+    uint32_t _pinLockedUntilMs = 0; // 0/минуле = клавіатура не заблокована
+
     uint8_t _pendingId = 0; // face_id або PIN_SENTINEL_ID для поточного раунду авторизації
     uint8_t _pendingPin[PIN_LEN];
     uint8_t _nonce[NONCE_LEN];
@@ -62,13 +66,14 @@ private:
     void tickPairing();
     void tickIdle();
     void tickFaceScanning();
-    void tickPinEntry();
     void tickWaitNonce();
     void tickWaitUnlockAck();
     void tickPostUnlockReset();
 
     void checkTamper();
     void sendHeartbeatIfDue();
+    void handleKeypad();      // клавіатура активна в будь-якому стані, крім PAIRING (в якої свій режим введення)
+    void registerPinFailure();
     void startAuthRound(uint8_t id, const uint8_t* pin);
 
     void sendMessage(uint8_t type, const uint8_t* payload, uint8_t len);

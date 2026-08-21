@@ -56,11 +56,17 @@ void OuterController::update() {
     sendHeartbeatIfDue();
     _face.update();
 
+    // Клавіатура опитується завжди, незалежно від _state - PIN можна вводити
+    // (і # для закриття замку натиснути) будь-коли, не лише в PIN_ENTRY.
+    // Виняток - PAIRING: там '#' підтверджує НАЛАШТУВАННЯ статичного PIN
+    // (tickPairing сама читає клавіатуру), а не спробу авторизації.
+    if (_state != State::PAIRING) handleKeypad();
+
     switch (_state) {
         case State::PAIRING: tickPairing(); break;
         case State::IDLE: tickIdle(); break;
         case State::FACE_SCANNING: tickFaceScanning(); break;
-        case State::PIN_ENTRY: tickPinEntry(); break;
+        case State::PIN_ENTRY: break; // лише LED-індикація; ввід обробляє handleKeypad() вище
         case State::WAIT_NONCE: tickWaitNonce(); break;
         case State::WAIT_UNLOCK_ACK: tickWaitUnlockAck(); break;
         case State::POST_UNLOCK_RESET: tickPostUnlockReset(); break;
@@ -170,16 +176,25 @@ void OuterController::tickFaceScanning() {
     }
 }
 
-void OuterController::tickPinEntry() {
+void OuterController::handleKeypad() {
     char k = _keypad.scan();
     if (!k) return;
+
+    if (k == '#') {
+        // Незалежно від стану/блокування PIN - # завжди лише замикає замок,
+        // це не спроба авторизації і нічого не розкриває атакеру.
+        sendMessage(MSG_LOCK_CLOSE, nullptr, 0);
+        Serial.println("[LOCK] close requested from keypad (#)");
+        return;
+    }
+
+    if (millis() < _pinLockedUntilMs) return; // клавіатура заблокована через невдалі спроби PIN
 
     if (k == '*') {
         _pinEntryLen = 0;
         _led.setProgress(0, PIN_LEN);
         return;
     }
-    if (k == '#') return; // не цифра в цьому контексті - ігноруємо
 
     if (_pinEntryLen < PIN_LEN) {
         _pinBuf[_pinEntryLen++] = (uint8_t)(k - '0');
@@ -189,6 +204,20 @@ void OuterController::tickPinEntry() {
         startAuthRound(PIN_SENTINEL_ID, _pinBuf);
         _pinEntryLen = 0;
     }
+}
+
+void OuterController::registerPinFailure() {
+    _pinFailCount++;
+    if (_pinFailCount < PIN_LOCKOUT_MAX_FAILS) return;
+
+    uint32_t blockMs = PIN_LOCKOUT_BASE_MS << _pinLockoutLevel; // 1, 2, 4, 8... хв
+    _pinLockedUntilMs = millis() + blockMs;
+    Serial.print("[KEYPAD] locked out for ");
+    Serial.print(blockMs / 1000);
+    Serial.println("s after 3 failed PIN attempts");
+
+    _pinFailCount = 0;
+    if (_pinLockoutLevel < 7) _pinLockoutLevel++; // стеля ~128 хв, щоб зсув не переповнив uint32_t
 }
 
 void OuterController::startAuthRound(uint8_t id, const uint8_t* pin) {
@@ -244,6 +273,8 @@ void OuterController::tickWaitUnlockAck() {
         _nvs.rotateKey(newKey);
 
         _faceFailCount = 0;
+        _pinFailCount = 0;
+        _pinLockoutLevel = 0;
         _led.setRunningGreen();
         _face.triggerReset(); // вимога ТЗ: скидати модуль після кожного успішного unlock
         _state = State::POST_UNLOCK_RESET;
@@ -252,6 +283,7 @@ void OuterController::tickWaitUnlockAck() {
     if (millis() >= _deadline) {
         Serial.println("[AUTH] denied or no ack from INNER");
         _led.setBlinkRed();
+        if (_pendingId == PIN_SENTINEL_ID) registerPinFailure();
         _state = State::IDLE;
     }
 }

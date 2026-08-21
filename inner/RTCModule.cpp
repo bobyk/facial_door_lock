@@ -21,3 +21,8 @@ void RTCModule::formatTimestamp(char* out, size_t outLen) {
     snprintf(out, outLen, "%04d-%02d-%02d %02d:%02d:%02d",
              now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
 }
+
+uint8_t RTCModule::day() {
+    if (!_ok) return 0;
+    return _rtc.now().day();
+}

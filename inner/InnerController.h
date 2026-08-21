@@ -53,7 +53,9 @@ private:
     void handleReq();
     void handleAuth(const uint8_t* payload, uint8_t len);
     void handleTamper();
+    void handleLockClose();
     void registerFailure(const char* reason);
+    void buildDailyPin(uint8_t day, uint8_t out[PIN_LEN]);
     void tickPairing(bool got, uint8_t type, const uint8_t* payload, uint8_t len);
     void checkTof();
     void checkMaintButton();
