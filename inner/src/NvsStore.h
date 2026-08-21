@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "Protocol.h"
+#include "Link.h" // TransportMode
 
 // Постійне сховище ключа/лічильників у NVS (через Preferences - обгортка над
 // nvs_flash, вже частина ESP32 Arduino core, нова залежність не потрібна).
@@ -21,10 +22,19 @@ public:
     const uint8_t* pinHash() const { return _pinHash; } // валідний лише якщо hasPinHash()
     bool hasPinHash() const { return _hasPinHash; }
 
+    // MAC/канал напарника для ESP-NOW - записуються під час паринга незалежно
+    // від того, яким транспортом сам паринг відбувався (щоб можна було пізніше
+    // перейти на ESP-NOW навіть якщо парились по UART).
+    const uint8_t* peerMac() const { return _peerMac; }
+    uint8_t wifiChannel() const { return _wifiChannel; }
+
+    TransportMode transportMode() const { return _transportMode; }
+    void setTransportMode(TransportMode mode);
+
     // Викликається після успішного паринга: записує все одразу (paired - останнім,
     // як фінальний маркер завершення - переривання живлення до цього моменту
     // лишає paired=false, тож наступна спроба паринга почнеться "з чистого").
-    void commitPairing(const uint8_t key[KEY_LEN]);
+    void commitPairing(const uint8_t key[KEY_LEN], const uint8_t peerMac[6], uint8_t wifiChannel);
 
     // Атомарний (наскільки дозволяє NVS) ratchet: kprev=kcur, kcur=newKey, gen++.
     // Порядок запису kprev -> kcur -> gen обраний так, щоб переривання живлення
@@ -49,6 +59,9 @@ private:
     bool _lockedOut = false;
     uint8_t _pinHash[32] = {0};
     bool _hasPinHash = false;
+    uint8_t _peerMac[6] = {0};
+    uint8_t _wifiChannel = 0;
+    TransportMode _transportMode = TransportMode::AUTO; // незаданий NVS-ключ = AUTO (лише бенч/дебаг)
 
     void load();
 };

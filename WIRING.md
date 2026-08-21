@@ -67,6 +67,47 @@ locally on the OUTER board (buck converter), rather than sending regulated 5 V
 over the cable. Size core 4 (and the GND return) for the peak current -
 20 AWG or thicker, or paralleled conductors.
 
+## Transport: UART (default) vs ESP-NOW (fallback)
+
+The inter-board `Link` is transport-agnostic - `UartLink` (the cable, above)
+or `EspNowLink` (Wi-Fi radio, no AP, ESP-NOW protocol). Same frame format,
+same HMAC, same nonce/counter rules on both; **the transport carries no
+security responsibility of its own** beyond an ESP-NOW source-MAC allowlist,
+which exists to keep noise out, not as a substitute for the HMAC.
+
+Selection is `transport_mode`, persisted in NVS on each board independently:
+- `UART` - cable only, never falls back to radio. **This is the required
+  commissioning setting for a deployed lock** - anything else means cutting
+  the cable silently downgrades the system to radio, which defeats the
+  tamper/physical-access model the whole design rests on.
+- `ESPNOW` - radio only.
+- `AUTO` (factory default before commissioning) - at boot, sends a PING over
+  UART and waits up to 500 ms for a PONG, 3 attempts (~1.5 s worst case). If
+  a peer answers, stays on UART for the entire session - no runtime fallback
+  to radio after that point, since that would be the exact same downgrade
+  just delayed. Otherwise falls back to `EspNowLink`. **Bench/debug only** -
+  pin to `UART` before installing.
+
+**Commissioning step:** after verifying the system works, pin the transport
+over the USB serial console on each board:
+
+```
+transport uart
+```
+
+(also accepts `transport espnow` or `transport auto`). Persists to NVS
+immediately; takes effect on the next boot - reboot both boards after
+sending it.
+
+**Wi-Fi coexistence:** ESP-NOW requires the Wi-Fi radio initialized in STA
+mode (no AP connection). This only happens when a board is actually running
+`EspNowLink` (AUTO-fallback or pinned `ESPNOW`) - a board pinned to `UART`
+never touches Wi-Fi, keeping current draw and attack surface at the UART-only
+baseline. If you do run ESP-NOW, budget the extra STA-mode current draw
+(radio active even without an AP connection) on top of the FRM1213's 1 A IR
+flash peak on OUTER - re-check the 12 V feed sizing above if ESP-NOW is
+intended to be more than a bench fallback.
+
 ## Pairing procedure
 
 1. Power off both boards.
@@ -74,11 +115,14 @@ over the cable. Size core 4 (and the GND return) for the peak current -
    OUTER's scan/pairing button (GPIO4) and INNER's maintenance button (GPIO4).
    Only needs to be held through boot (~50 ms debounce) - release once the
    board is up.
-3. Both boards enter a 30 s pairing window. INNER generates a new random
-   32-byte key and repeatedly broadcasts it over the Link. OUTER stores the
-   first valid key it receives and immediately acknowledges. INNER finalizes
-   (sets `paired=true`, resets counter/generation to 0) only after receiving
-   that acknowledgement - if the ack never arrives, nothing is persisted on
+3. Both boards enter a 30 s pairing window, over whichever transport was
+   already selected at boot (see above). INNER generates a new random 32-byte
+   key plus its own Wi-Fi channel choice, and repeatedly broadcasts
+   key + its own STA MAC + that channel. OUTER stores the first valid bundle
+   it receives (so it can fall back to ESP-NOW later even if this pairing
+   session ran over UART) and immediately replies with its own STA MAC.
+   INNER finalizes (sets `paired=true`, resets counter/generation to 0) only
+   after receiving that reply - if it never arrives, nothing is persisted on
    either side and the previous key (if any) stays in effect.
 4. Optional, same window: on OUTER's keypad, enter a 6-digit PIN and press
    `#`. Its SHA-256 hash is sent to INNER and stored, enabling the PIN

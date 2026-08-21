@@ -70,4 +70,7 @@ private:
     void checkTamper();
     void sendHeartbeatIfDue();
     void startAuthRound(uint8_t id, const uint8_t* pin);
+
+    void sendMessage(uint8_t type, const uint8_t* payload, uint8_t len);
+    bool recvMessage(uint8_t& type, uint8_t* payload, uint8_t& len, uint8_t maxLen);
 };

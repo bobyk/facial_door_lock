@@ -23,15 +23,22 @@ void NvsStore::load() {
         size_t n = _prefs.getBytes("pinhash", _pinHash, sizeof(_pinHash));
         if (n != sizeof(_pinHash)) _hasPinHash = false;
     }
+
+    size_t macLen = _prefs.getBytes("peermac", _peerMac, sizeof(_peerMac));
+    if (macLen != sizeof(_peerMac)) memset(_peerMac, 0, sizeof(_peerMac));
+    _wifiChannel = _prefs.getUChar("wifichan", 0);
+    _transportMode = (TransportMode)_prefs.getUChar("transport", (uint8_t)TransportMode::AUTO);
 }
 
-void NvsStore::commitPairing(const uint8_t key[KEY_LEN]) {
+void NvsStore::commitPairing(const uint8_t key[KEY_LEN], const uint8_t peerMac[6], uint8_t wifiChannel) {
     // paired записується останнім - незавершене живлення до цього моменту лишає
     // paired=false, тож наступна спроба паринга почнеться з чистого стану, а не "напівпарного".
     memcpy(_kcur, key, KEY_LEN);
     memset(_kprev, 0, KEY_LEN);
     _gen = 0;
     _counter = 0;
+    memcpy(_peerMac, peerMac, sizeof(_peerMac));
+    _wifiChannel = wifiChannel;
 
     _prefs.putBytes("kcur", _kcur, KEY_LEN);
     _prefs.putBytes("kprev", _kprev, KEY_LEN);
@@ -39,8 +46,15 @@ void NvsStore::commitPairing(const uint8_t key[KEY_LEN]) {
     _prefs.putUInt("ctr", _counter);
     _prefs.putBool("lockout", false);
     _lockedOut = false;
+    _prefs.putBytes("peermac", _peerMac, sizeof(_peerMac));
+    _prefs.putUChar("wifichan", _wifiChannel);
     _prefs.putBool("paired", true);
     _paired = true;
+}
+
+void NvsStore::setTransportMode(TransportMode mode) {
+    _transportMode = mode;
+    _prefs.putUChar("transport", (uint8_t)mode);
 }
 
 void NvsStore::rotateKey(const uint8_t newKey[KEY_LEN]) {

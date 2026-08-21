@@ -47,6 +47,7 @@ private:
     uint32_t _maintHoldStartMs = 0;
 
     uint8_t _pairingKey[KEY_LEN];
+    uint8_t _pairingChannel = 0;
     uint32_t _pairingDeadline = 0;
 
     void handleReq();
@@ -58,4 +59,7 @@ private:
     void checkMaintButton();
     void checkHeartbeat();
     void logEvent(const char* msg);
+
+    void sendMessage(uint8_t type, const uint8_t* payload, uint8_t len);
+    bool recvMessage(uint8_t& type, uint8_t* payload, uint8_t& len, uint8_t maxLen);
 };

@@ -48,6 +48,7 @@
 #define HEARTBEAT_INTERVAL_MS 2000UL
 #define PAIRING_WINDOW_MS 30000UL
 #define PAIRING_BOOT_HOLD_MS 50UL          // debounce for "button held at boot"
+#define LINK_ALIVE_TIMEOUT_MS 10000UL      // Link::isAlive() threshold, either transport
 
 // --- Behaviour ---
 #define MAX_FACE_ATTEMPTS 3 // consecutive face-scan failures before falling back to PIN entry

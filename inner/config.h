@@ -34,3 +34,7 @@
 #define PAIRING_BOOT_HOLD_MS 50UL
 #define HEARTBEAT_MISSING_MS 10000UL   // OUTER heartbeat missing this long -> suspicious log, no lockout
 #define TOF_PRESENCE_THRESHOLD_MM 1000 // internal ToF unlock-without-auth threshold
+#define LINK_ALIVE_TIMEOUT_MS 10000UL  // Link::isAlive() threshold, either transport
+
+// --- ESP-NOW (fallback transport) ---
+#define WIFI_CHANNEL 6 // INNER picks this at pairing time, broadcasts it to OUTER; both must match

@@ -10,10 +10,14 @@
 //   MSG_AUTH       : 13 bytes   - OUTER -> INNER, face_id(1) + counter(4,LE) + tag(8).
 //   MSG_UNLOCK_OK  : no payload - INNER -> OUTER, authorization accepted, lock driven.
 //   MSG_TAMPER     : no payload - OUTER -> INNER, enclosure lid opened.
-//   MSG_PAIR_KEY   : 32 bytes   - INNER -> OUTER, new shared key (pairing window only).
-//   MSG_PAIR_ACK   : no payload - OUTER -> INNER, key stored, pairing may finalize.
+//   MSG_PAIR_KEY   : 39 bytes   - INNER -> OUTER, key(32) + INNER's STA MAC(6) + Wi-Fi channel(1),
+//                                 pairing window only. MAC/channel let either board fall back to
+//                                 ESP-NOW later even if this pairing session ran over UART.
+//   MSG_PAIR_ACK   : 6 bytes    - OUTER -> INNER, OUTER's STA MAC. Key stored, pairing may finalize.
 //   MSG_PAIR_PIN   : 32 bytes   - OUTER -> INNER, SHA-256(PIN) captured during pairing window.
 //   MSG_HEARTBEAT  : no payload - OUTER -> INNER, periodic liveness signal.
+//   MSG_PING/PONG  : no payload - boot-time transport probe only (see TransportProbe.h), never
+//                                 used once a session is running under a chosen transport.
 enum : uint8_t {
     MSG_REQ = 0x01,
     MSG_NONCE = 0x02,
@@ -24,6 +28,8 @@ enum : uint8_t {
     MSG_PAIR_ACK = 0x07,
     MSG_PAIR_PIN = 0x08,
     MSG_HEARTBEAT = 0x09,
+    MSG_PING = 0x0A,
+    MSG_PONG = 0x0B,
 };
 
 static constexpr uint8_t NONCE_LEN = 8;

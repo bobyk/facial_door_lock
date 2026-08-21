@@ -1,5 +1,7 @@
 #include "OuterController.h"
 #include "config.h"
+#include "LinkFrame.h"
+#include <WiFi.h>
 #include <string.h>
 
 OuterController::OuterController(Link& link, Crypto& crypto, NvsStore& nvs, Frm1213Driver& face,
@@ -7,6 +9,19 @@ OuterController::OuterController(Link& link, Crypto& crypto, NvsStore& nvs, Frm1
                                   uint8_t scanButtonPin, uint8_t tamperPin)
     : _link(link), _crypto(crypto), _nvs(nvs), _face(face), _presence(presence),
       _keypad(keypad), _led(led), _scanButtonPin(scanButtonPin), _tamperPin(tamperPin) {}
+
+void OuterController::sendMessage(uint8_t type, const uint8_t* payload, uint8_t len) {
+    uint8_t frame[LINK_FRAME_MAX];
+    uint8_t frameLen = encodeLinkFrame(type, payload, len, frame);
+    _link.send(frame, frameLen);
+}
+
+bool OuterController::recvMessage(uint8_t& type, uint8_t* payload, uint8_t& len, uint8_t maxLen) {
+    uint8_t buf[LINK_FRAME_MAX];
+    size_t bufLen = sizeof(buf);
+    if (!_link.receive(buf, bufLen)) return false;
+    return decodeLinkFrame(buf, bufLen, type, payload, len, maxLen);
+}
 
 void OuterController::begin() {
     pinMode(_scanButtonPin, INPUT_PULLUP);
@@ -17,6 +32,9 @@ void OuterController::begin() {
     _face.begin();
     _presence.begin();
     _led.begin();
+    Serial.print("[LINK] using ");
+    Serial.print(_link.name());
+    Serial.println(" transport");
 
     // Перевірка "кнопка утримана на старті" - одноразово, до входу в loop(),
     // тому короткий busy-wait тут не порушує вимогу "без delay() в головному циклі".
@@ -57,12 +75,12 @@ void OuterController::checkTamper() {
 
     if (level == HIGH && _lastTamperLevel == LOW) {
         Serial.println("[TAMPER] enclosure opened - notifying INNER");
-        _link.send(MSG_TAMPER, nullptr, 0);
+        sendMessage(MSG_TAMPER, nullptr, 0);
         lastResendMs = now;
     } else if (level == HIGH && now - lastResendMs >= 2000) {
-        // UART без ACK для TAMPER - періодично повторюємо, поки кришка відкрита,
-        // на випадок якщо перший кадр загубився.
-        _link.send(MSG_TAMPER, nullptr, 0);
+        // Без ACK для TAMPER - періодично повторюємо, поки кришка відкрита,
+        // на випадок якщо перший кадр загубився (актуально для обох транспортів).
+        sendMessage(MSG_TAMPER, nullptr, 0);
         lastResendMs = now;
     }
     _lastTamperLevel = level;
@@ -71,17 +89,25 @@ void OuterController::checkTamper() {
 void OuterController::sendHeartbeatIfDue() {
     uint32_t now = millis();
     if (now - _lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
-        _link.send(MSG_HEARTBEAT, nullptr, 0);
+        sendMessage(MSG_HEARTBEAT, nullptr, 0);
         _lastHeartbeatMs = now;
     }
 }
 
 void OuterController::tickPairing() {
     uint8_t type, payload[LINK_MAX_PAYLOAD], len;
-    if (_link.poll(type, payload, len, sizeof(payload)) && type == MSG_PAIR_KEY && len == KEY_LEN) {
-        _nvs.commitPairing(payload);
-        for (uint8_t i = 0; i < 3; ++i) _link.send(MSG_PAIR_ACK, nullptr, 0); // невелика надлишковість, UART без ack
-        Serial.println("[PAIR] key received and stored");
+    if (recvMessage(type, payload, len, sizeof(payload)) && type == MSG_PAIR_KEY
+        && len == KEY_LEN + 6 + 1) {
+        const uint8_t* key = payload;
+        const uint8_t* innerMac = payload + KEY_LEN;
+        uint8_t channel = payload[KEY_LEN + 6];
+
+        _nvs.commitPairing(key, innerMac, channel);
+
+        uint8_t ownMac[6];
+        WiFi.macAddress(ownMac); // не потребує WiFi.mode(WIFI_STA) - читає базовий MAC з efuse
+        for (uint8_t i = 0; i < 3; ++i) sendMessage(MSG_PAIR_ACK, ownMac, sizeof(ownMac)); // без ack - невелика надлишковість
+        Serial.println("[PAIR] key + peer MAC received and stored");
         _pinEntryLen = 0;
         _state = State::IDLE;
         return;
@@ -95,7 +121,7 @@ void OuterController::tickPairing() {
         if (_pinEntryLen == PIN_LEN) {
             uint8_t hash[32];
             _crypto.sha256(_pinBuf, PIN_LEN, hash);
-            _link.send(MSG_PAIR_PIN, hash, sizeof(hash));
+            sendMessage(MSG_PAIR_PIN, hash, sizeof(hash));
             Serial.println("[PAIR] PIN hash sent");
         }
         _pinEntryLen = 0;
@@ -170,14 +196,14 @@ void OuterController::startAuthRound(uint8_t id, const uint8_t* pin) {
     if (pin) memcpy(_pendingPin, pin, PIN_LEN);
     else memset(_pendingPin, 0, PIN_LEN);
 
-    _link.send(MSG_REQ, nullptr, 0);
+    sendMessage(MSG_REQ, nullptr, 0);
     _deadline = millis() + NONCE_WAIT_TIMEOUT_MS;
     _state = State::WAIT_NONCE;
 }
 
 void OuterController::tickWaitNonce() {
     uint8_t type, payload[LINK_MAX_PAYLOAD], len;
-    if (_link.poll(type, payload, len, sizeof(payload)) && type == MSG_NONCE && len == NONCE_LEN) {
+    if (recvMessage(type, payload, len, sizeof(payload)) && type == MSG_NONCE && len == NONCE_LEN) {
         memcpy(_nonce, payload, NONCE_LEN);
 
         _pendingCounter = _nvs.counter() + 1;
@@ -196,7 +222,7 @@ void OuterController::tickWaitNonce() {
 
         uint8_t out[AUTH_PAYLOAD_LEN_PIN];
         uint8_t outLen = encodeAuthPayload(auth, out);
-        _link.send(MSG_AUTH, out, outLen);
+        sendMessage(MSG_AUTH, out, outLen);
 
         _deadline = millis() + UNLOCK_ACK_TIMEOUT_MS;
         _state = State::WAIT_UNLOCK_ACK;
@@ -211,7 +237,7 @@ void OuterController::tickWaitNonce() {
 
 void OuterController::tickWaitUnlockAck() {
     uint8_t type, payload[LINK_MAX_PAYLOAD], len;
-    if (_link.poll(type, payload, len, sizeof(payload)) && type == MSG_UNLOCK_OK) {
+    if (recvMessage(type, payload, len, sizeof(payload)) && type == MSG_UNLOCK_OK) {
         Serial.println("[AUTH] unlock granted - rotating key");
         uint8_t newKey[KEY_LEN];
         deriveNextKey(_crypto, _nvs.keyCurrent(), _pendingCounter, newKey);

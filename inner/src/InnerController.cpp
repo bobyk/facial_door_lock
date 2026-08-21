@@ -1,11 +1,26 @@
 #include "InnerController.h"
 #include "config.h"
+#include "LinkFrame.h"
+#include <WiFi.h>
 #include <string.h>
 
 InnerController::InnerController(Link& link, Crypto& crypto, NvsStore& nvs, LockDriver& lock,
                                   ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin)
     : _link(link), _crypto(crypto), _nvs(nvs), _lock(lock), _tof(tof), _rtc(rtc),
       _maintButtonPin(maintButtonPin) {}
+
+void InnerController::sendMessage(uint8_t type, const uint8_t* payload, uint8_t len) {
+    uint8_t frame[LINK_FRAME_MAX];
+    uint8_t frameLen = encodeLinkFrame(type, payload, len, frame);
+    _link.send(frame, frameLen);
+}
+
+bool InnerController::recvMessage(uint8_t& type, uint8_t* payload, uint8_t& len, uint8_t maxLen) {
+    uint8_t buf[LINK_FRAME_MAX];
+    size_t bufLen = sizeof(buf);
+    if (!_link.receive(buf, bufLen)) return false;
+    return decodeLinkFrame(buf, bufLen, type, payload, len, maxLen);
+}
 
 void InnerController::begin() {
     pinMode(_maintButtonPin, INPUT_PULLUP);
@@ -14,6 +29,9 @@ void InnerController::begin() {
     _tof.begin();
     _rtc.begin();
     _bootMs = millis();
+    Serial.print("[LINK] using ");
+    Serial.print(_link.name());
+    Serial.println(" transport");
 
     // Перевірка "кнопка утримана на старті" - одноразово, до входу в loop().
     bool held = (digitalRead(_maintButtonPin) == LOW);
@@ -25,6 +43,7 @@ void InnerController::begin() {
     if (held) {
         logEvent("boot button held - entering pairing window, generating new key");
         _crypto.randomBytes(_pairingKey, KEY_LEN);
+        _pairingChannel = WIFI_CHANNEL; // INNER обирає канал ESP-NOW для пари, повідомляє його OUTER
         _pairingDeadline = millis() + PAIRING_WINDOW_MS;
         _state = State::PAIRING;
         return;
@@ -49,7 +68,7 @@ void InnerController::update() {
     checkTof(); // egress unlock - unconditional, checked every tick regardless of state
 
     uint8_t type, payload[LINK_MAX_PAYLOAD], len;
-    bool got = _link.poll(type, payload, len, sizeof(payload));
+    bool got = recvMessage(type, payload, len, sizeof(payload));
 
     if (got && type == MSG_TAMPER) {
         handleTamper();
@@ -107,8 +126,7 @@ void InnerController::checkMaintButton() {
 
 void InnerController::checkHeartbeat() {
     if (millis() - _bootMs < HEARTBEAT_MISSING_MS) return; // грейс-період одразу після старту
-    uint32_t sinceRx = millis() - _link.lastRxMillis();
-    if (sinceRx > HEARTBEAT_MISSING_MS) {
+    if (!_link.isAlive()) {
         if (!_heartbeatMissingLogged) {
             logEvent("OUTER heartbeat missing >10s - suspicious (not locking out)");
             _heartbeatMissingLogged = true;
@@ -128,11 +146,11 @@ void InnerController::handleReq() {
     if (!_nvs.isPaired()) { logEvent("REQ ignored: not paired"); return; }
     if (millis() < _rateLimitBlockedUntilMs) { logEvent("REQ ignored: rate limited"); return; }
 
-    // Радіо в цьому проєкті завжди вимкнене (без Wi-Fi/BT) - randomBytes() сам
-    // вмикає/вимикає bootloader_random_enable() навколо генерації.
+    // Crypto::randomBytes() сам вирішує, чи потрібен bootloader_random_enable()
+    // (лише коли радіо вимкнене - див. коментар в CryptoMbedTLS.cpp).
     _crypto.randomBytes(_nonce, NONCE_LEN);
     _nonceIssuedMs = millis();
-    _link.send(MSG_NONCE, _nonce, NONCE_LEN);
+    sendMessage(MSG_NONCE, _nonce, NONCE_LEN);
     _state = State::AWAITING_AUTH;
 }
 
@@ -171,6 +189,10 @@ void InnerController::handleAuth(const uint8_t* payload, uint8_t len) {
         }
     }
 
+    // Лічильник - глобальний, не прив'язаний до транспорту (nvs.counter()), тож
+    // кадр, перехоплений на одному транспорті, неможливо повторно застосувати
+    // через інший - "replay across transports must be impossible" виконується
+    // автоматично самою структурою, без додаткової логіки тут.
     uint8_t macIn[NONCE_LEN + AUTH_PAYLOAD_LEN_PIN - TAG_LEN];
     uint8_t macInLen = buildAuthMacInput(_nonce, auth.id, auth.counter, auth.pin, macIn);
 
@@ -197,21 +219,23 @@ void InnerController::handleAuth(const uint8_t* payload, uint8_t len) {
         // Ratchet просувається лише коли реально під поточним ключем - якщо це був
         // matchPrev (desync recovery), INNER лишається на тому ж поколінні і просто
         // повторно надсилає UNLOCK_OK, щоб OUTER наздогнав самостійною ротацією.
+        // Ratchet-стан транспортно-незалежний - зміна транспорту сама по собі
+        // ніколи не скидає й не пропускає покоління.
         uint8_t newKey[KEY_LEN];
         deriveNextKey(_crypto, _nvs.keyCurrent(), auth.counter, newKey);
         _nvs.rotateKey(newKey);
     }
 
-    _link.send(MSG_UNLOCK_OK, nullptr, 0);
+    sendMessage(MSG_UNLOCK_OK, nullptr, 0);
 }
 
 void InnerController::tickPairing(bool got, uint8_t type, const uint8_t* payload, uint8_t len) {
     static uint32_t lastBroadcastMs = 0;
     uint32_t now = millis();
 
-    if (got && type == MSG_PAIR_ACK) {
-        _nvs.commitPairing(_pairingKey);
-        logEvent("pairing complete (key acknowledged by OUTER)");
+    if (got && type == MSG_PAIR_ACK && len == 6) {
+        _nvs.commitPairing(_pairingKey, payload, _pairingChannel); // payload = OUTER's MAC
+        logEvent("pairing complete (key + peer MAC exchanged)");
         _consecutiveFails = 0;
         _rateLimitBlockedUntilMs = 0;
         _state = State::IDLE;
@@ -223,7 +247,11 @@ void InnerController::tickPairing(bool got, uint8_t type, const uint8_t* payload
     }
 
     if (now - lastBroadcastMs >= 500) {
-        _link.send(MSG_PAIR_KEY, _pairingKey, KEY_LEN);
+        uint8_t bundle[KEY_LEN + 6 + 1];
+        memcpy(bundle, _pairingKey, KEY_LEN);
+        WiFi.macAddress(bundle + KEY_LEN); // INNER's own STA MAC, не потребує WiFi.mode(WIFI_STA)
+        bundle[KEY_LEN + 6] = _pairingChannel;
+        sendMessage(MSG_PAIR_KEY, bundle, sizeof(bundle));
         lastBroadcastMs = now;
     }
 
