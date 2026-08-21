@@ -1,26 +1,35 @@
 #pragma once
 
-// Board: ESP32-S3 Super Mini. Pin pool avoids strapping pins (GPIO0, 45, 46)
-// and native-USB pins (19, 20), per the board's limited/odd GPIO map.
-// See WIRING.md for the full picture.
+// Board: Ozobot DRVKit (esp32:esp32:ozobot_drvkit), ESP32-S3. Same board used
+// for OUTER. Requires Tools > Pin Numbering: "By GPIO number (legacy)" - see
+// the long comment in outer/config.h for why (FastLED/io_pin_remap.h conflict
+// under the default "By Arduino pin" mode).
+//
+// This board has a built-in dual motor driver (GPIO18/17 and GPIO21/33) -
+// deliberately NOT used for the lock actuator here; the lock uses its own
+// separate external H-bridge (see LockDriver.h) on free general-purpose
+// pins instead, so the onboard driver channels are left unused/unconfigured.
+// Free general-purpose pins used below are GPIO1-10 ("A0-A9" on the board's
+// own silkscreen) plus the board's labelled I2C header (GPIO47/48).
 
-// --- Inter-board Link UART (Serial2) - see UartLink.h ---
-#define LINK_RX_PIN 15
-#define LINK_TX_PIN 16
-#define LINK_UART_BAUD 115200
-
-// --- I2C for DS3231 RTC and VL53L1X (TOF400C) ---
-#define I2C_SDA_PIN 8
-#define I2C_SCL_PIN 9
+// --- I2C for DS3231 RTC and VL53L1X (TOF400C) - board's labelled I2C header ---
+#define I2C_SDA_PIN 47
+#define I2C_SCL_PIN 48
 #define TOF_ADDR 0x29 // VL53L1X default address
 
-// --- Motor driver (2-channel H-bridge, IN1/IN2) ---
-#define MOTOR_IN1_PIN 5
-#define MOTOR_IN2_PIN 6
+// --- Inter-board Link UART (Serial2) - free general-purpose pins ---
+#define LINK_RX_PIN 1
+#define LINK_TX_PIN 2
+#define LINK_UART_BAUD 115200
+
+// --- Motor driver (2-channel H-bridge, IN1/IN2) - separate from the board's
+// own onboard motor driver, per design decision (see comment above) ---
+#define MOTOR_IN1_PIN 3
+#define MOTOR_IN2_PIN 4
 #define MOTOR_PULSE_MS 500
 
 // --- Maintenance button: held at boot = pairing window; held 3s at runtime = clear tamper lockout ---
-#define MAINT_BUTTON_PIN 4
+#define MAINT_BUTTON_PIN 5
 
 // --- NVS namespace ---
 #define NVS_NAMESPACE "innercfg"

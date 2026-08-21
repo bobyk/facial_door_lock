@@ -1,6 +1,8 @@
 // INNER board: RTC, motor lock driver, internal TOF400C presence sensor.
 // The ONLY board with an electrical path to the lock, and the sole authority
 // that decides whether to drive it.
+// Board: Ozobot DRVKit (esp32:esp32:ozobot_drvkit), same as OUTER. Requires
+// Tools > Pin Numbering: "By GPIO number (legacy)" - see config.h for why.
 // Libraries via Library Manager (Sketch > Include Library > Manage Libraries):
 //   - RTClib (Adafruit)
 //   - VL53L1X (Pololu)

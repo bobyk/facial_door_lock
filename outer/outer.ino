@@ -1,6 +1,7 @@
 // OUTER board: face module, scan button, tamper switch, presence radar, keypad, LED.
 // No electrical path to the lock - every unlock decision is made by INNER.
-// Requires Tools > USB CDC On Boot: Enabled (see config.h).
+// Board: Ozobot DRVKit (esp32:esp32:ozobot_drvkit). Requires Tools > Pin
+// Numbering: "By GPIO number (legacy)" - see config.h for why.
 // Libraries via Library Manager (Sketch > Include Library > Manage Libraries):
 //   - FastLED
 // (VL53L1X/RTClib are NOT needed on this board - those are INNER-only.
@@ -31,7 +32,7 @@ Frm1213Driver face(Serial1, FACE_RX_PIN, FACE_TX_PIN,
                     FACE_UART_BAUD);
 LD2420PresenceSensor presence(Serial0, PRESENCE_RX_PIN, PRESENCE_TX_PIN, PRESENCE_UART_BAUD);
 KeypadPCF8574 keypad(PCF8574_ADDR);
-LedStrip led(LED_NUM);
+LedStrip led;
 OuterController* controller = nullptr;
 
 // Обирає транспорт за transport_mode з NVS. AUTO - лише для стенду/дебагу:

@@ -47,6 +47,7 @@ char KeypadPCF8574::scan() {
     }
     if (found && !_emitted && (now - _lastChangeMs) >= DEBOUNCE_MS) {
         _emitted = true; // видаємо рівно один раз на стабільне натискання
+        Serial.printf("[KEYPAD] key='%c'\n", found);
         return found;
     }
     return 0;

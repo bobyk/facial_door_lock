@@ -2,10 +2,16 @@
 #include <FastLED.h>
 #include "config.h"
 
-static CRGB g_leds[LED_NUM];
+// Один-єдиний адресний піксель на платі (RGB_LED, GPIO42) - не стрічка.
+// Публічний інтерфейс (setProgress/setRunningGreen тощо) лишається таким же,
+// як був би для стрічки, щоб OuterController не залежав від фізичної форми
+// індикатора; тут ці режими виражені через яскравість/тривалість одного пікселя
+// замість "заповнення N з count" чи "хвилі по довжині".
+static CRGB g_led[1];
+static constexpr uint32_t UNLOCK_FLASH_MS = 800; // тривалість підтвердження unlock (заміна "хвилі" для 1 пікселя)
 
 void LedStrip::begin() {
-    FastLED.addLeds<WS2812, LED_DATA_PIN, GRB>(g_leds, _count);
+    FastLED.addLeds<WS2812, LED_DATA_PIN, GRB>(g_led, 1);
     FastLED.clear(true);
 }
 
@@ -40,16 +46,17 @@ void LedStrip::update() {
     uint32_t now = millis();
     switch (_mode) {
         case Mode::OFF:
-            fill_solid(g_leds, _count, CRGB::Black);
+            g_led[0] = CRGB::Black;
             break;
 
         case Mode::SCANNING:
-            fill_solid(g_leds, _count, CRGB(0, 0, 40));
+            g_led[0] = CRGB(0, 0, 40);
             break;
 
         case Mode::PROGRESS: {
-            uint16_t lit = (uint16_t)((uint32_t)_count * _progressEntered / _progressTotal);
-            for (uint16_t i = 0; i < _count; ++i) g_leds[i] = (i < lit) ? CRGB(60, 40, 0) : CRGB::Black;
+            // Яскравість пропорційна введеним/загальним цифрам - аналог "заповнення" для 1 пікселя.
+            uint8_t brightness = (uint8_t)((uint16_t)60 * _progressEntered / _progressTotal);
+            g_led[0] = CRGB(brightness, (uint8_t)(brightness * 2 / 3), 0); // бурштиновий відтінок
             break;
         }
 
@@ -58,7 +65,7 @@ void LedStrip::update() {
                 _blinkOn = !_blinkOn;
                 _lastBlinkMs = now;
             }
-            fill_solid(g_leds, _count, _blinkOn ? CRGB(60, 0, 0) : CRGB::Black);
+            g_led[0] = _blinkOn ? CRGB(60, 0, 0) : CRGB::Black;
             break;
 
         case Mode::TAMPER:
@@ -66,18 +73,17 @@ void LedStrip::update() {
                 _blinkOn = !_blinkOn;
                 _lastBlinkMs = now;
             }
-            fill_solid(g_leds, _count, _blinkOn ? CRGB(80, 0, 0) : CRGB::Black);
+            g_led[0] = _blinkOn ? CRGB(80, 0, 0) : CRGB::Black;
             break;
 
-        case Mode::RUNNING_GREEN: {
-            uint32_t elapsed = now - _animStart;
-            const uint32_t stepMs = 40;
-            uint16_t head = (uint16_t)(elapsed / stepMs);
-            fill_solid(g_leds, _count, CRGB::Black);
-            for (uint16_t i = 0; i < _count && i <= head; ++i) g_leds[i] = CRGB(0, 60, 0);
-            if (head > _count) _mode = Mode::OFF; // одна хвиля - і повертаємось у стан очікування
+        case Mode::RUNNING_GREEN:
+            if (now - _animStart >= UNLOCK_FLASH_MS) {
+                _mode = Mode::OFF; // короткий спалах підтвердження - і повертаємось у стан очікування
+                g_led[0] = CRGB::Black;
+            } else {
+                g_led[0] = CRGB(0, 60, 0);
+            }
             break;
-        }
     }
     FastLED.show();
 }

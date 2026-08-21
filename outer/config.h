@@ -1,40 +1,50 @@
 #pragma once
 
-// Board: ESP32-S3 Super Mini. Requires Tools > USB CDC On Boot: Enabled, so
-// Serial (debug console) runs over native USB (GPIO19/20) and all three
-// hardware UART peripherals (Serial0/1/2) stay free for FRM1213, the
-// inter-board Link, and the LD2420 presence sensor.
-// Pin pool avoids strapping pins (GPIO0, 45, 46) and native-USB pins (19, 20),
-// per the board's limited/odd GPIO map. See WIRING.md for the full picture.
+// Board: Ozobot DRVKit (esp32:esp32:ozobot_drvkit), ESP32-S3. Same board used
+// for INNER. Requires Tools > Pin Numbering: "By GPIO number (legacy)" -
+// the default "By Arduino pin" mode activates io_pin_remap.h macro
+// redefinitions of pinMode/digitalWrite/digitalRead/analogRead/analogWrite
+// that collide with FastLED's own internal pin.h (compile error). Switching
+// to raw GPIO numbering avoids that entirely and matches every pin number
+// below being a literal GPIO, not a remapped "Dx" logical pin.
+//
+// This board has FIXED onboard peripherals (see its pins_arduino.h): a dual
+// motor driver (unused here - INNER uses a separate external driver), a
+// single button sharing GPIO0/BOOT, and a single onboard addressable RGB LED
+// on GPIO42. GPIO18/17/21/33 (motor driver), GPIO34/12/11/13 (SPI header),
+// and GPIO0 (boot/button) are physically committed - not repurposed here.
+// Free general-purpose pins used below are GPIO1-10 ("A0-A9" on the board's
+// own silkscreen) plus the board's labelled I2C header (GPIO47/48).
 
-// --- FRM1213 face module UART (Serial1) ---
-#define FACE_RX_PIN 17
-#define FACE_TX_PIN 18
+// --- Onboard button (BUTTON = shares GPIO0/BOOT) and RGB LED (GPIO42) ---
+// Reusing GPIO0 as a runtime input after boot is the standard, well-established
+// pattern for "BOOT button doubles as user button" on ESP32 dev boards - it
+// only affects boot-mode selection during power-on/reset, not afterward.
+#define SCAN_BUTTON_PIN 0   // = BUTTON. Press = scan trigger. Held at boot = pairing window.
+#define LED_DATA_PIN 42     // = RGB_LED. Single onboard WS2812-compatible pixel (FastLED).
+
+// --- I2C for PCF8574 keypad - board's labelled I2C header ---
+#define I2C_SDA_PIN 47
+#define I2C_SCL_PIN 48
+#define PCF8574_ADDR 0x20
+
+// --- FRM1213 face module UART (Serial1) - free general-purpose pins ---
+#define FACE_RX_PIN 1
+#define FACE_TX_PIN 2
 #define FACE_UART_BAUD 115200
 
 // --- Inter-board Link UART (Serial2) - see UartLink.h ---
-#define LINK_RX_PIN 15
-#define LINK_TX_PIN 16
+#define LINK_RX_PIN 3
+#define LINK_TX_PIN 4
 #define LINK_UART_BAUD 115200
 
-// --- LD2420 external presence radar UART (Serial0, default UART0 pins,
-// freed for peripheral use once console Serial moves to native USB) ---
-#define PRESENCE_RX_PIN 44
-#define PRESENCE_TX_PIN 43
+// --- LD2420 external presence radar UART (Serial0) ---
+#define PRESENCE_RX_PIN 5
+#define PRESENCE_TX_PIN 6
 #define PRESENCE_UART_BAUD 115200
 
-// --- I2C for PCF8574 keypad ---
-#define I2C_SDA_PIN 8
-#define I2C_SCL_PIN 9
-#define PCF8574_ADDR 0x20
-
-// --- Buttons / switches ---
-#define SCAN_BUTTON_PIN 4  // scan trigger (press) and pairing trigger (held at boot)
-#define TAMPER_PIN 5       // NC switch on enclosure lid, internal pullup: HIGH = opened
-
-// --- LED strip (WS2812, FastLED - pin must be a compile-time constant) ---
-#define LED_DATA_PIN 6
-#define LED_NUM 12
+// --- Tamper switch (external NC switch on enclosure lid, internal pullup) ---
+#define TAMPER_PIN 7 // HIGH = opened (see OuterController::checkTamper)
 
 // --- NVS namespace ---
 #define NVS_NAMESPACE "outercfg"
