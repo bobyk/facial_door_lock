@@ -7,13 +7,29 @@ motor driver, one button on GPIO0/BOOT, one addressable RGB LED on GPIO42,
 labelled I2C/SPI/UART header groups). Pin choices below work around those
 fixed functions rather than assuming free choice of any GPIO.
 
-**Both boards require Tools > Pin Numbering: "By GPIO number (legacy)".**
-The default "By Arduino pin" mode activates `io_pin_remap.h` macro
-redefinitions of `pinMode`/`digitalWrite`/`digitalRead`/`analogRead`/
-`analogWrite` in the ESP32 core, which collide with FastLED's own internal
-pin-handling code (`fl/system/pin.h`) and fail to compile. Switching to raw
-GPIO numbering avoids the redefinition entirely and matches every pin number
-in `config.h` being a literal GPIO, not a remapped logical "Dx" pin.
+**Both boards require Pin Numbering: "By GPIO number (legacy)".** The default
+"By Arduino pin" mode activates `io_pin_remap.h` macro redefinitions of
+`pinMode`/`digitalWrite`/`digitalRead`/`analogRead`/`analogWrite` in the
+ESP32 core, which collide with FastLED's own internal pin-handling code
+(`fl/system/pin.h`) and fail to compile. Switching to raw GPIO numbering
+avoids the redefinition entirely and matches every pin number in `config.h`
+being a literal GPIO, not a remapped logical "Dx" pin.
+
+Each sketch folder has a **`sketch.yaml`** that bakes this in - it pins the
+exact FQBN (`esp32:esp32:ozobot_drvkit:PinNumbers=byGPIONumber`) plus the
+required library versions, so this isn't a setting you have to remember to
+flip by hand on every machine/IDE reinstall:
+- **arduino-cli:** `arduino-cli compile outer` (or `inner`) picks it up
+  automatically - no `--fqbn` needed.
+- **Arduino IDE 2.x:** opening the sketch should offer a profile selector
+  (bottom status bar / a prompt) - pick the `ozobot_drvkit` profile. Requires
+  a recent-enough IDE 2.x version to support sketch project files; if yours
+  doesn't, fall back to manually setting Tools > Board > Ozobot DRVKit, then
+  Tools > Pin Numbering > "By GPIO number (legacy)".
+- Note the profile manages its **own pinned library copies** local to the
+  sketch (separate from your globally-installed libraries) for
+  reproducibility - if you're actively developing against a modified/newer
+  library locally, that won't be picked up through the profile path.
 
 I don't have confirmed specs for this board's own power input/connector (its
 public documentation is sparse - it's a very recently added board). Each
