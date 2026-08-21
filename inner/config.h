@@ -4,7 +4,7 @@
 // and native-USB pins (19, 20), per the board's limited/odd GPIO map.
 // See WIRING.md for the full picture.
 
-// --- Inter-board Link UART (Serial2) - see src/UartLink.h ---
+// --- Inter-board Link UART (Serial2) - see UartLink.h ---
 #define LINK_RX_PIN 15
 #define LINK_TX_PIN 16
 #define LINK_UART_BAUD 115200

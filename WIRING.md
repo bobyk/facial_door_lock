@@ -40,7 +40,7 @@ Avoided: GPIO0/45/46 (strapping), GPIO19/20 (native USB D-/D+).
 **Hardware warning (not solved in software):** the motor is an inductive load
 sharing the INNER enclosure with the MCU. The board must provide galvanic
 isolation (opto-isolator on IN1/IN2) and a flyback diode/snubber across the
-motor winding - see the comment in `inner/src/LockDriver.h`.
+motor winding - see the comment in `inner/LockDriver.h`.
 
 ## Inter-board cable (~5 m)
 

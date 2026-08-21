@@ -12,7 +12,7 @@
 #define FACE_TX_PIN 18
 #define FACE_UART_BAUD 115200
 
-// --- Inter-board Link UART (Serial2) - see src/UartLink.h ---
+// --- Inter-board Link UART (Serial2) - see UartLink.h ---
 #define LINK_RX_PIN 15
 #define LINK_TX_PIN 16
 #define LINK_UART_BAUD 115200
