@@ -1,6 +1,8 @@
 #include "KeypadPCF8574.h"
 
 constexpr char KeypadPCF8574::KEYS[ROWS][COLS];
+constexpr uint8_t KeypadPCF8574::ROW_BIT[ROWS];
+constexpr uint8_t KeypadPCF8574::COL_BIT[COLS];
 
 bool KeypadPCF8574::begin(TwoWire& wire) {
     _wire = &wire;
@@ -34,13 +36,14 @@ char KeypadPCF8574::scan() {
     for (uint8_t r = 0; r < ROWS && !found; ++r) {
         // Активний рядок - LOW, решта рядків HIGH (щоб не давати хибних коротких замикань
         // між рядками через клавішу), стовпці завжди HIGH (вхід з pull-up).
-        uint8_t out = 0b11110000 | (0x0F & ~(1 << r));
+        // ROW_BIT/COL_BIT перекладають логічний row/col у реальний P-біт (див. коментар в .h).
+        uint8_t out = 0b11110000 | (0x0F & ~(1 << ROW_BIT[r]));
         bool wOk = writePort(out);
         bool rOk;
         uint8_t in = readPort(rOk);
         anyOk = anyOk || (wOk && rOk);
         for (uint8_t c = 0; c < COLS; ++c) {
-            if (!(in & (1 << (4 + c)))) {
+            if (!(in & (1 << COL_BIT[c]))) {
                 found = KEYS[r][c];
                 break;
             }

@@ -11,21 +11,36 @@
 // This board has FIXED onboard peripherals (see its pins_arduino.h): a dual
 // motor driver (unused here - INNER uses a separate external driver), a
 // single button sharing GPIO0/BOOT, and a single onboard addressable RGB LED
-// on GPIO42. GPIO18/17/21/33 (motor driver), GPIO34/12/11/13 (SPI header),
-// and GPIO0 (boot/button) are physically committed - not repurposed here.
-// Free general-purpose pins used below are GPIO1-10 ("A0-A9" on the board's
-// own silkscreen) plus the board's labelled I2C header (GPIO47/48).
+// (pin TBD - see LED_DATA_PIN comment below, the software definition and a
+// generic ESP32-S3 pin chart disagree and this hasn't been confirmed against
+// the physical board yet). GPIO18/17/21/33 (motor driver) and GPIO0
+// (boot/button) are physically committed - not repurposed here.
+// Free general-purpose pins used below are GPIO1-10, confirmed empirically
+// against the real board rather than trusted from the software pin file -
+// see the I2C comment below for why that distinction matters here.
 
 // --- Onboard button (BUTTON = shares GPIO0/BOOT) and RGB LED (GPIO42) ---
 // Reusing GPIO0 as a runtime input after boot is the standard, well-established
 // pattern for "BOOT button doubles as user button" on ESP32 dev boards - it
 // only affects boot-mode selection during power-on/reset, not afterward.
 #define SCAN_BUTTON_PIN 0   // = BUTTON. Press = scan trigger. Held at boot = pairing window.
-#define LED_DATA_PIN 42     // = RGB_LED. Single onboard WS2812-compatible pixel (FastLED).
+// UNCONFIRMED: the Ozobot DRVKit software pin file (pins_arduino.h) says the
+// onboard RGB LED is GPIO42, but a generic ESP32-S3 pin chart the user found
+// says GPIO47 - these directly conflict and haven't been reconciled against
+// the physical board yet. If the LED doesn't light/animate as expected,
+// this is the first thing to re-check (see WIRING.md).
+#define LED_DATA_PIN 42     // = RGB_LED (per software definition, not yet physically confirmed)
 
-// --- I2C for PCF8574 keypad - board's labelled I2C header ---
-#define I2C_SDA_PIN 47
-#define I2C_SCL_PIN 48
+// --- I2C for PCF8574 keypad ---
+// Confirmed empirically on real hardware (see git history) - the board's
+// software definition claimed a "labelled I2C header" at GPIO47/48, but the
+// keypad only responded once moved to GPIO8/9, which is also what's actually
+// silkscreened at the header the keypad is wired to (bare "8"/"9", no
+// software-defined role). Row/column order also needed remapping in
+// KeypadPCF8574.h (ROW_BIT/COL_BIT) - the keypad's ribbon wiring doesn't
+// match this class's original P0-P6 sequential assumption.
+#define I2C_SDA_PIN 8
+#define I2C_SCL_PIN 9
 #define PCF8574_ADDR 0x20
 
 // --- FRM1213 face module UART (Serial1) - free general-purpose pins ---

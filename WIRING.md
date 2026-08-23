@@ -43,19 +43,29 @@ whether the inter-board cable needs to carry power at all (see below).
 Onboard, not repurposed: dual motor driver (GPIO18/17, GPIO21/33 - unused on
 this board), SPI header (GPIO34/12/11/13 - unused).
 
+**A word of caution on this whole table:** the software pin file
+(`pins_arduino.h`) for this board and a generic ESP32-S3 pin chart found
+online directly disagree on several of these (e.g. the RGB LED at GPIO42 vs
+GPIO47) - two sources describing the same physical board should never
+conflict, so at least one of them doesn't apply to the actual hardware here.
+The I2C pins below were wrong in the software file and only confirmed
+correct by testing on the real board (they responded on GPIO8/9, not the
+GPIO47/48 the software file claimed). Treat every entry not marked
+"confirmed" as provisional until checked the same way.
+
 | Signal | Pin | Notes |
 |---|---|---|
 | Scan / pairing button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is the standard pattern - it only affects boot-mode selection during power-on/reset. Press = scan trigger. Held at boot = pairing window. |
-| Status LED | GPIO42 | Onboard `RGB_LED`, single WS2812-compatible pixel (FastLED, 1 LED - not a strip). |
-| I2C SDA (PCF8574 keypad) | GPIO47 | Onboard labelled I2C header |
-| I2C SCL (PCF8574 keypad) | GPIO48 | PCF8574 address 0x20 |
-| FRM1213 UART RX | GPIO1 | Serial1, 115200 8N1, free general-purpose pin |
-| FRM1213 UART TX | GPIO2 | Serial1 |
-| Inter-board Link RX | GPIO3 | Serial2, 115200 8N1 |
-| Inter-board Link TX | GPIO4 | Serial2 |
-| LD2420 presence UART RX | GPIO5 | Serial0 |
-| LD2420 presence UART TX | GPIO6 | Serial0 |
-| Tamper switch (NC, lid) | GPIO7 | INPUT_PULLUP, external switch. Lid closed = contact closed = LOW. Lid opened = HIGH. |
+| Status LED | GPIO42 | **Unconfirmed** - software file says onboard `RGB_LED`; a generic pin chart says GPIO47 instead. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). If it doesn't light up/animate, try GPIO47. |
+| I2C SDA (PCF8574 keypad) | GPIO8 | **Confirmed on real hardware.** Software file's claimed "labelled I2C header" (GPIO47/48) didn't respond; the keypad only worked once moved here. |
+| I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. Row/column order also needed remapping in code (ribbon wiring didn't match the class's original P0-P6 order) - see `KeypadPCF8574.h`'s `ROW_BIT`/`COL_BIT`. |
+| FRM1213 UART RX | GPIO1 | Serial1, 115200 8N1, free general-purpose pin - not yet tested against real hardware |
+| FRM1213 UART TX | GPIO2 | Serial1 - not yet tested against real hardware |
+| Inter-board Link RX | GPIO3 | Serial2, 115200 8N1 - not yet tested against real hardware |
+| Inter-board Link TX | GPIO4 | Serial2 - not yet tested against real hardware |
+| LD2420 presence UART RX | GPIO5 | Serial0 - not yet tested against real hardware |
+| LD2420 presence UART TX | GPIO6 | Serial0 - not yet tested against real hardware |
+| Tamper switch (NC, lid) | GPIO7 | INPUT_PULLUP, external switch. Lid closed = contact closed = LOW. Lid opened = HIGH. Not yet tested against real hardware. |
 
 ## INNER board (Ozobot DRVKit)
 
@@ -64,6 +74,12 @@ GPIO21/33) - the lock actuator uses its own separate external H-bridge
 instead (see `inner/LockDriver.h`), so those onboard channels are left
 unconfigured/unused. Also unused: the onboard button and RGB LED (INNER has
 no user-facing UI in this design).
+
+**Same caution as OUTER applies here** - INNER's I2C pins below are still
+the software file's claimed GPIO47/48, unverified against real hardware.
+Given OUTER's identical claim turned out wrong on the same board model,
+expect INNER's to need the same empirical correction (I2C scan + retest)
+once INNER is wired up - don't trust this row until then.
 
 | Signal | Pin | Notes |
 |---|---|---|
