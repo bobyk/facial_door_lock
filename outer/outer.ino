@@ -90,9 +90,26 @@ void handleSerialCommand() {
     }
 }
 
+// Одноразовий скан I2C-шини при старті - найшвидший спосіб діагностувати
+// "клавіатура не реагує": показує, чи PCF8574 взагалі відповідає, і на якій
+// адресі, якщо PCF8574_ADDR у config.h не збігається з реальним апаратним.
+void scanI2cOnce() {
+    Serial.println("[I2C] scanning bus...");
+    uint8_t found = 0;
+    for (uint8_t addr = 1; addr < 127; ++addr) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            Serial.printf("[I2C] device found at 0x%02X\n", addr);
+            found++;
+        }
+    }
+    if (found == 0) Serial.println("[I2C] no devices found - check wiring/power to the I2C bus");
+}
+
 void setup() {
     Serial.begin(115200);
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    scanI2cOnce();
     nvs.begin(NVS_NAMESPACE);
     keypad.begin(Wire);
 

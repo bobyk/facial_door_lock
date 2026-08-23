@@ -29,7 +29,11 @@ private:
     char _lastKey = 0;
     uint32_t _lastChangeMs = 0;
     bool _emitted = false;
+    uint32_t _lastI2cErrorLogMs = 0;
 
-    uint8_t readPort();
-    void writePort(uint8_t value);
+    // ok=false якщо PCF8574 не ACK-нув на цій адресі - інакше НЕДОСЯЖНІСТЬ
+    // пристрою невідрізнима від "жодну клавішу не натиснуто" (обидві дають 0xFF).
+    uint8_t readPort(bool& ok);
+    bool writePort(uint8_t value);
+    void logI2cErrorRateLimited();
 };

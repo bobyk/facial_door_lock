@@ -5,30 +5,40 @@ constexpr char KeypadPCF8574::KEYS[ROWS][COLS];
 bool KeypadPCF8574::begin(TwoWire& wire) {
     _wire = &wire;
     // P0-P3 рядки = LOW по черзі (вихід), P4-P6 стовпці = HIGH (вхід з pull-up), P7 не використовується.
-    writePort(0b11110000);
-    return true;
+    return writePort(0b11110000);
 }
 
-uint8_t KeypadPCF8574::readPort() {
-    _wire->requestFrom((int)_addr, 1);
-    if (_wire->available()) return (uint8_t)_wire->read();
-    return 0xFF;
+uint8_t KeypadPCF8574::readPort(bool& ok) {
+    uint8_t n = _wire->requestFrom((int)_addr, (int)1);
+    ok = (n == 1) && _wire->available();
+    if (ok) return (uint8_t)_wire->read();
+    return 0xFF; // те саме значення, що й "жодна клавіша не натиснута" - див. ok
 }
 
-void KeypadPCF8574::writePort(uint8_t value) {
+bool KeypadPCF8574::writePort(uint8_t value) {
     _wire->beginTransmission(_addr);
     _wire->write(value);
-    _wire->endTransmission();
+    return _wire->endTransmission() == 0; // 0 = ACK, інакше пристрій не відповів
+}
+
+void KeypadPCF8574::logI2cErrorRateLimited() {
+    uint32_t now = millis();
+    if (now - _lastI2cErrorLogMs < 2000) return;
+    _lastI2cErrorLogMs = now;
+    Serial.printf("[KEYPAD] PCF8574 not responding at I2C address 0x%02X - check wiring/address/pull-ups\n", _addr);
 }
 
 char KeypadPCF8574::scan() {
     char found = 0;
+    bool anyOk = false;
     for (uint8_t r = 0; r < ROWS && !found; ++r) {
         // Активний рядок - LOW, решта рядків HIGH (щоб не давати хибних коротких замикань
         // між рядками через клавішу), стовпці завжди HIGH (вхід з pull-up).
         uint8_t out = 0b11110000 | (0x0F & ~(1 << r));
-        writePort(out);
-        uint8_t in = readPort();
+        bool wOk = writePort(out);
+        bool rOk;
+        uint8_t in = readPort(rOk);
+        anyOk = anyOk || (wOk && rOk);
         for (uint8_t c = 0; c < COLS; ++c) {
             if (!(in & (1 << (4 + c)))) {
                 found = KEYS[r][c];
@@ -37,6 +47,11 @@ char KeypadPCF8574::scan() {
         }
     }
     writePort(0b11110000); // повернути рядки в стан очікування
+
+    if (!anyOk) {
+        logI2cErrorRateLimited();
+        return 0; // недосяжний пристрій - нічого не інтерпретуємо як натискання
+    }
 
     uint32_t now = millis();
     if (found != _lastKey) {
