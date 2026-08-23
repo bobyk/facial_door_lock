@@ -23,6 +23,25 @@ bool KeypadPCF8574::writePort(uint8_t value) {
     return _wire->endTransmission() == 0; // 0 = ACK, інакше пристрій не відповів
 }
 
+void KeypadPCF8574::dumpRaw() {
+    static uint32_t lastMs = 0;
+    uint32_t now = millis();
+    if (now - lastMs < 300) return;
+    lastMs = now;
+
+    // Керує голими бітами P0-P3 напряму (без ROW_BIT) - щоб побачити реальну
+    // електрику незалежно від будь-якого припущення про мапінг рядків/стовпців.
+    uint8_t vals[4];
+    for (uint8_t p = 0; p < 4; ++p) {
+        writePort(0xF0 | (0x0F & (uint8_t)~(1 << p)));
+        bool ok;
+        vals[p] = readPort(ok);
+    }
+    writePort(0xF0);
+    Serial.printf("[RAW] P0low=0x%02X P1low=0x%02X P2low=0x%02X P3low=0x%02X\n",
+                  vals[0], vals[1], vals[2], vals[3]);
+}
+
 void KeypadPCF8574::logI2cErrorRateLimited() {
     uint32_t now = millis();
     if (now - _lastI2cErrorLogMs < 2000) return;
