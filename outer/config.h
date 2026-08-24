@@ -11,25 +11,26 @@
 // This board has FIXED onboard peripherals (see its pins_arduino.h): a dual
 // motor driver (unused here - INNER uses a separate external driver), a
 // single button sharing GPIO0/BOOT, and a single onboard addressable RGB LED
-// (pin TBD - see LED_DATA_PIN comment below, the software definition and a
-// generic ESP32-S3 pin chart disagree and this hasn't been confirmed against
-// the physical board yet). GPIO18/17/21/33 (motor driver) and GPIO0
-// (boot/button) are physically committed - not repurposed here.
+// on GPIO47 (see LED_DATA_PIN comment below - the board's own software pin
+// file claimed GPIO42 instead, but a pin chart photo of the actual board
+// shows the RGB LED at GPIO47, which is what's used here). GPIO18/17/21/33
+// (motor driver) and GPIO0 (boot/button) are physically committed - not
+// repurposed here.
 // Free general-purpose pins used below are GPIO1-10, confirmed empirically
 // against the real board rather than trusted from the software pin file -
 // see the I2C comment below for why that distinction matters here.
 
-// --- Onboard button (BUTTON = shares GPIO0/BOOT) and RGB LED (GPIO42) ---
+// --- Onboard button (BUTTON = shares GPIO0/BOOT) and RGB LED (GPIO47) ---
 // Reusing GPIO0 as a runtime input after boot is the standard, well-established
 // pattern for "BOOT button doubles as user button" on ESP32 dev boards - it
 // only affects boot-mode selection during power-on/reset, not afterward.
 #define SCAN_BUTTON_PIN 0   // = BUTTON. Press = scan trigger. Held at boot = pairing window.
-// UNCONFIRMED: the Ozobot DRVKit software pin file (pins_arduino.h) says the
-// onboard RGB LED is GPIO42, but a generic ESP32-S3 pin chart the user found
-// says GPIO47 - these directly conflict and haven't been reconciled against
-// the physical board yet. If the LED doesn't light/animate as expected,
-// this is the first thing to re-check (see WIRING.md).
-#define LED_DATA_PIN 42     // = RGB_LED (per software definition, not yet physically confirmed)
+// GPIO47 per a pin chart of the actual board (labelled RGB_LED there); the
+// Ozobot DRVKit software pin file (pins_arduino.h) claims GPIO42 instead -
+// going with the pin chart since the software file was already wrong once
+// on this same board (see the I2C comment below). Still worth confirming
+// live (does it light up / animate correctly) rather than assuming.
+#define LED_DATA_PIN 47     // = RGB_LED
 
 // --- I2C for PCF8574 keypad ---
 // Confirmed empirically on real hardware (see git history) - the board's

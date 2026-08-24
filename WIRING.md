@@ -44,19 +44,16 @@ Onboard, not repurposed: dual motor driver (GPIO18/17, GPIO21/33 - unused on
 this board), SPI header (GPIO34/12/11/13 - unused).
 
 **A word of caution on this whole table:** the software pin file
-(`pins_arduino.h`) for this board and a generic ESP32-S3 pin chart found
-online directly disagree on several of these (e.g. the RGB LED at GPIO42 vs
-GPIO47) - two sources describing the same physical board should never
-conflict, so at least one of them doesn't apply to the actual hardware here.
-The I2C pins below were wrong in the software file and only confirmed
-correct by testing on the real board (they responded on GPIO8/9, not the
-GPIO47/48 the software file claimed). Treat every entry not marked
-"confirmed" as provisional until checked the same way.
+(`pins_arduino.h`) for this board has already been proven wrong once (the
+I2C pins below) against a pin chart photo of the actual board, which turned
+out to be correct instead. Treat every entry not marked "confirmed on real
+hardware" as based on that pin chart rather than a live test, until checked
+the same way the I2C pins were.
 
 | Signal | Pin | Notes |
 |---|---|---|
 | Scan / pairing button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is the standard pattern - it only affects boot-mode selection during power-on/reset. Press = scan trigger. Held at boot = pairing window. |
-| Status LED | GPIO42 | **Unconfirmed** - software file says onboard `RGB_LED`; a generic pin chart says GPIO47 instead. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). If it doesn't light up/animate, try GPIO47. |
+| Status LED | GPIO47 | Per the board's pin chart (labelled `RGB_LED`) - the software pin file claims GPIO42 instead, but going with the chart since the software file was already wrong once on this board. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). Still worth confirming it actually lights up. |
 | I2C SDA (PCF8574 keypad) | GPIO8 | **Confirmed on real hardware.** Software file's claimed "labelled I2C header" (GPIO47/48) didn't respond; the keypad only worked once moved here. |
 | I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. The keypad ribbon's row/column order didn't match a naive "P0-P3=rows, P4-P6=columns" assumption either - confirmed working end to end with `ROW_BIT={5,0,1,3}`, `COL_BIT={4,6,7}` in `KeypadPCF8574.h`. |
 | FRM1213 UART RX | GPIO1 | Serial1, 115200 8N1, free general-purpose pin - not yet tested against real hardware |
