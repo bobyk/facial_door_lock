@@ -126,18 +126,24 @@ void setup() {
     nvs.begin(NVS_NAMESPACE);
 
     selectTransport();
-    if (activeLink == espnowLink) {
-        Serial.println("[WIFI] WARNING: Link transport is ESP-NOW - connecting to the home AP "
-                        "will force ESP-NOW onto that AP's channel, which may not match "
-                        "WIFI_CHANNEL/what OUTER paired with. See config.h.");
-    }
 
     controller = new InnerController(*activeLink, crypto, nvs, lock, tof, rtc, MAINT_BUTTON_PIN, eventLog);
     controller->begin();
 
-    wifiManager.begin();
-    statusServer.begin();
-    mqtt.begin();
+    // ESP-NOW and Wi-Fi STA share one radio and must sit on the same channel.
+    // Joining the home AP would force ESP-NOW onto whatever channel THAT AP
+    // uses, which silently breaks the OUTER<->INNER Link (pairing broadcasts,
+    // heartbeats, everything) - so the aux Wi-Fi stack stays off entirely
+    // while running on ESP-NOW. It only comes up on UART transport, which
+    // doesn't touch the radio at all. See config.h/WIRING.md.
+    if (activeLink == &uartLink) {
+        wifiManager.begin();
+        statusServer.begin();
+        mqtt.begin();
+    } else {
+        Serial.println("[WIFI] skipped: Link transport is ESP-NOW - home Wi-Fi would break it "
+                        "(shared radio channel). Run `transport uart` to enable OTA/monitoring/MQTT.");
+    }
 }
 
 void loop() {
