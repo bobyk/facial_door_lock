@@ -58,7 +58,7 @@ GPIO47/48 the software file claimed). Treat every entry not marked
 | Scan / pairing button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is the standard pattern - it only affects boot-mode selection during power-on/reset. Press = scan trigger. Held at boot = pairing window. |
 | Status LED | GPIO42 | **Unconfirmed** - software file says onboard `RGB_LED`; a generic pin chart says GPIO47 instead. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). If it doesn't light up/animate, try GPIO47. |
 | I2C SDA (PCF8574 keypad) | GPIO8 | **Confirmed on real hardware.** Software file's claimed "labelled I2C header" (GPIO47/48) didn't respond; the keypad only worked once moved here. |
-| I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. Row/column order also needed remapping in code (ribbon wiring didn't match the class's original P0-P6 order) - see `KeypadPCF8574.h`'s `ROW_BIT`/`COL_BIT`. |
+| I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. The keypad ribbon's row/column order didn't match a naive "P0-P3=rows, P4-P6=columns" assumption either - confirmed working end to end with `ROW_BIT={5,0,1,3}`, `COL_BIT={4,6,7}` in `KeypadPCF8574.h`. |
 | FRM1213 UART RX | GPIO1 | Serial1, 115200 8N1, free general-purpose pin - not yet tested against real hardware |
 | FRM1213 UART TX | GPIO2 | Serial1 - not yet tested against real hardware |
 | Inter-board Link RX | GPIO3 | Serial2, 115200 8N1 - not yet tested against real hardware |

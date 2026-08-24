@@ -36,9 +36,9 @@
 // software definition claimed a "labelled I2C header" at GPIO47/48, but the
 // keypad only responded once moved to GPIO8/9, which is also what's actually
 // silkscreened at the header the keypad is wired to (bare "8"/"9", no
-// software-defined role). Row/column order also needed remapping in
-// KeypadPCF8574.h (ROW_BIT/COL_BIT) - the keypad's ribbon wiring doesn't
-// match this class's original P0-P6 sequential assumption.
+// software-defined role). The keypad's own ribbon wiring also didn't match a
+// naive "P0-P3=rows, P4-P6=columns" order - see ROW_BIT/COL_BIT in
+// KeypadPCF8574.h for the confirmed real mapping.
 #define I2C_SDA_PIN 8
 #define I2C_SCL_PIN 9
 #define PCF8574_ADDR 0x20

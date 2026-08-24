@@ -123,5 +123,4 @@ void setup() {
 void loop() {
     controller->update();
     handleSerialCommand();
-    keypad.dumpRaw(); // TEMP DEBUG: remove once the 1/2/6/9/# keypad issue is resolved
 }
