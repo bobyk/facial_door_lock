@@ -51,7 +51,8 @@ OtaUpdater ota(OTA_HOSTNAME, OTA_PASSWORD);
 StatusServer statusServer(nvs, eventLog, STATUS_SERVER_PORT);
 WiFiClient mqttWifiClient;
 MqttReporter mqtt(mqttWifiClient, MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_CLIENT_ID,
-                   MQTT_TOPIC_PREFIX, nvs, MQTT_PUBLISH_INTERVAL_MS, MQTT_RECONNECT_INTERVAL_MS);
+                   MQTT_USERNAME, MQTT_PASSWORD, MQTT_TOPIC_PREFIX, nvs,
+                   MQTT_PUBLISH_INTERVAL_MS, MQTT_RECONNECT_INTERVAL_MS);
 uint32_t lastForwardedEventCount = 0;
 
 // Forwards any new EventLog lines to MQTT since the last check - keeps

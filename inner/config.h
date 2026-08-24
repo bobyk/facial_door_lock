@@ -84,6 +84,8 @@
 #define MQTT_BROKER_HOST "192.168.1.47"
 #define MQTT_BROKER_PORT 1883
 #define MQTT_CLIENT_ID "inner-lock"
+#define MQTT_USERNAME "lock"
+#define MQTT_PASSWORD "nhfnfnf"
 #define MQTT_TOPIC_PREFIX "doorlock/inner"
 #define MQTT_PUBLISH_INTERVAL_MS 15000UL
 #define MQTT_RECONNECT_INTERVAL_MS 5000UL

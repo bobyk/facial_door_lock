@@ -13,10 +13,11 @@
 class MqttReporter {
 public:
     MqttReporter(WiFiClient& wifiClient, const char* host, uint16_t port,
-                 const char* clientId, const char* topicPrefix,
-                 NvsStore& nvs, uint32_t publishIntervalMs, uint32_t reconnectIntervalMs)
+                 const char* clientId, const char* username, const char* password,
+                 const char* topicPrefix, NvsStore& nvs,
+                 uint32_t publishIntervalMs, uint32_t reconnectIntervalMs)
         : _client(wifiClient), _host(host), _port(port), _clientId(clientId),
-          _topicPrefix(topicPrefix), _nvs(nvs),
+          _username(username), _password(password), _topicPrefix(topicPrefix), _nvs(nvs),
           _publishIntervalMs(publishIntervalMs), _reconnectIntervalMs(reconnectIntervalMs) {}
 
     void begin() {
@@ -39,7 +40,10 @@ public:
             uint32_t now = millis();
             if (now - _lastReconnectAttemptMs >= _reconnectIntervalMs) {
                 _lastReconnectAttemptMs = now;
-                if (_client.connect(_clientId)) {
+                bool ok = (_username && _username[0])
+                    ? _client.connect(_clientId, _username, _password)
+                    : _client.connect(_clientId);
+                if (ok) {
                     Serial.println("[MQTT] connected");
                     publishStatus();
                 } else {
@@ -73,6 +77,8 @@ private:
     const char* _host;
     uint16_t _port;
     const char* _clientId;
+    const char* _username;
+    const char* _password;
     const char* _topicPrefix;
     NvsStore& _nvs;
     uint32_t _publishIntervalMs;
