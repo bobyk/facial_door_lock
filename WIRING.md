@@ -52,7 +52,7 @@ the same way the I2C pins were.
 
 | Signal | Pin | Notes |
 |---|---|---|
-| Scan / pairing button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is the standard pattern - it only affects boot-mode selection during power-on/reset. Press = scan trigger. Held at boot = pairing window. |
+| Scan button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is fine (standard pattern), but it can't be held-at-boot for anything - GPIO0 is also the bootloader-entry strapping pin, so holding it low across a reset enters USB download mode instead of running the app. Press (at runtime) = scan trigger. Pairing is entered via the `pair` serial command instead - see "Pairing procedure" below. |
 | Status LED | GPIO47 | Per the board's pin chart (labelled `RGB_LED`) - the software pin file claims GPIO42 instead, but going with the chart since the software file was already wrong once on this board. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). Still worth confirming it actually lights up. |
 | I2C SDA (PCF8574 keypad) | GPIO8 | **Confirmed on real hardware.** Software file's claimed "labelled I2C header" (GPIO47/48) didn't respond; the keypad only worked once moved here. |
 | I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. The keypad ribbon's row/column order didn't match a naive "P0-P3=rows, P4-P6=columns" assumption either - confirmed working end to end with `ROW_BIT={5,0,1,3}`, `COL_BIT={4,6,7}` in `KeypadPCF8574.h`. |
@@ -164,11 +164,18 @@ flash peak on OUTER.
 ## Pairing procedure
 
 1. Power off both boards.
-2. Power on **both** boards while physically holding their button:
-   OUTER's onboard BUTTON (GPIO0) and INNER's external maintenance button
-   (GPIO5). Only needs to be held through boot (~50 ms debounce) - release
-   once the board is up.
-3. Both boards enter a 30 s pairing window, over whichever transport was
+2. Power on **INNER** while physically holding its external maintenance
+   button (GPIO5). Only needs to be held through boot (~50 ms debounce) -
+   release once the board is up. This starts its 30 s pairing window.
+3. On **OUTER**, over its USB serial console, send the command `pair`.
+   OUTER's onboard BUTTON is GPIO0, which doubles as the ESP32's own
+   bootloader-entry strapping pin - holding it low across a reset puts the
+   chip into USB download mode instead of running the firmware at all, so
+   unlike INNER it can't use a "hold at boot" trigger. The serial command is
+   the same trust model (still requires a physical/USB connection to the
+   board), just without fighting the chip's own boot strapping. This can be
+   sent any time while INNER's window is open - no reboot needed on OUTER.
+4. Both boards are now in a 30 s pairing window, over whichever transport was
    already selected at boot (see above). INNER generates a new random 32-byte
    key plus its own Wi-Fi channel choice, and repeatedly broadcasts
    key + its own STA MAC + that channel. OUTER stores the first valid bundle
@@ -177,14 +184,15 @@ flash peak on OUTER.
    INNER finalizes (sets `paired=true`, resets counter/generation to 0) only
    after receiving that reply - if it never arrives, nothing is persisted on
    either side and the previous key (if any) stays in effect.
-4. Optional, same window: on OUTER's keypad, enter a 4-digit PIN and press
+5. Optional, same window: on OUTER's keypad, enter a 4-digit PIN and press
    `#`. Its SHA-256 hash is sent to INNER and stored, enabling the PIN
    fallback path (used after 3 failed face-recognition attempts, or usable
    directly - see "Keypad behaviour" below).
-5. If the window closes without a completed exchange, repeat from step 1.
-6. Re-pairing later (e.g. replacing a board) uses the same procedure - the
-   `paired` flag never reopens on its own; only a deliberate boot-time button
-   hold on both boards can trigger it again.
+6. If the window closes without a completed exchange, repeat from step 1.
+7. Re-pairing later (e.g. replacing a board) uses the same procedure - the
+   `paired` flag never reopens on its own; only deliberate physical/USB
+   access to both boards (INNER's boot-time button hold, OUTER's `pair`
+   serial command) can trigger it again.
 
 **Not covered by this pairing flow:** enrolling faces into the FRM1213
 itself. That's a separate, module-specific operation (not implemented here -

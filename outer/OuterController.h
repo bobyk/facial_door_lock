@@ -20,8 +20,14 @@ public:
                      IPresenceSensor& presence, KeypadPCF8574& keypad, LedStrip& led,
                      uint8_t scanButtonPin, uint8_t tamperPin);
 
-    void begin(); // читає стан кнопки паринга на старті, ініціалізує підмодулі
+    void begin(); // ініціалізує підмодулі
     void update(); // викликати щотік з loop()
+    // Викликати з serial-команди "pair". НЕ через утримання кнопки при
+    // старті (як на INNER) - GPIO0 тут одночасно є BOOT-strapping піном
+    // ESP32: якщо тримати його в LOW саме в момент reset, чіп йде в
+    // download-режим і взагалі не запускає прошивку, тож "тримати при
+    // старті" ніколи не спрацював би надійно на цьому піні.
+    void enterPairingNow();
 
 private:
     enum class State {

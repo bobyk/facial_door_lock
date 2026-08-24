@@ -21,10 +21,15 @@
 // see the I2C comment below for why that distinction matters here.
 
 // --- Onboard button (BUTTON = shares GPIO0/BOOT) and RGB LED (GPIO47) ---
-// Reusing GPIO0 as a runtime input after boot is the standard, well-established
-// pattern for "BOOT button doubles as user button" on ESP32 dev boards - it
-// only affects boot-mode selection during power-on/reset, not afterward.
-#define SCAN_BUTTON_PIN 0   // = BUTTON. Press = scan trigger. Held at boot = pairing window.
+// Reusing GPIO0 as a runtime input AFTER boot is fine (standard "BOOT button
+// doubles as user button" pattern) - but ONLY at runtime. GPIO0 is also the
+// ESP32's bootloader-entry strapping pin, checked by the ROM before any of
+// our code runs: hold it LOW across a reset and the chip enters USB download
+// mode instead of running the app at all. So unlike INNER's maintenance
+// button, this one can NEVER be used as a "hold at boot to enter pairing"
+// trigger - pairing on OUTER is entered via the `pair` serial command
+// instead (see OuterController::enterPairingNow()).
+#define SCAN_BUTTON_PIN 0   // = BUTTON. Press (at runtime only) = scan trigger.
 // GPIO47 per a pin chart of the actual board (labelled RGB_LED there); the
 // Ozobot DRVKit software pin file (pins_arduino.h) claims GPIO42 instead -
 // going with the pin chart since the software file was already wrong once
@@ -73,7 +78,6 @@
 #define UNLOCK_ACK_TIMEOUT_MS 2000UL       // waiting for UNLOCK_OK after AUTH
 #define HEARTBEAT_INTERVAL_MS 2000UL
 #define PAIRING_WINDOW_MS 30000UL
-#define PAIRING_BOOT_HOLD_MS 50UL          // debounce for "button held at boot"
 #define LINK_ALIVE_TIMEOUT_MS 10000UL      // Link::isAlive() threshold, either transport
 
 // --- Behaviour ---

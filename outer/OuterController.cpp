@@ -36,19 +36,13 @@ void OuterController::begin() {
     Serial.print(_link.name());
     Serial.println(" transport");
 
-    // Перевірка "кнопка утримана на старті" - одноразово, до входу в loop(),
-    // тому короткий busy-wait тут не порушує вимогу "без delay() в головному циклі".
-    if (digitalRead(_scanButtonPin) == LOW) {
-        uint32_t start = millis();
-        while (digitalRead(_scanButtonPin) == LOW && millis() - start < PAIRING_BOOT_HOLD_MS) {}
-        if (digitalRead(_scanButtonPin) == LOW && millis() - start >= PAIRING_BOOT_HOLD_MS) {
-            Serial.println("[PAIR] boot button held - entering pairing window");
-            _state = State::PAIRING;
-            _pairingDeadline = millis() + PAIRING_WINDOW_MS;
-            return;
-        }
-    }
     _state = State::IDLE;
+}
+
+void OuterController::enterPairingNow() {
+    Serial.println("[PAIR] entering pairing window (serial command)");
+    _state = State::PAIRING;
+    _pairingDeadline = millis() + PAIRING_WINDOW_MS;
 }
 
 void OuterController::update() {

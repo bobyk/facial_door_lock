@@ -83,8 +83,14 @@ void handleSerialCommand() {
         } else if (line == "transport auto") {
             nvs.setTransportMode(TransportMode::AUTO);
             Serial.println("[CMD] transport set to AUTO (bench/debug only) - reboot to apply");
+        } else if (line == "pair") {
+            // GPIO0 (SCAN_BUTTON_PIN) doubles as the ESP32's bootloader-entry
+            // strapping pin, so "hold at boot" can't be used here the way
+            // INNER does - see config.h. Same physical-access trust model:
+            // this still requires a USB/serial connection to the board.
+            controller->enterPairingNow();
         } else if (line.length() > 0) {
-            Serial.println("[CMD] unknown command (try: transport uart|espnow|auto)");
+            Serial.println("[CMD] unknown command (try: transport uart|espnow|auto, pair)");
         }
         line = "";
     }
