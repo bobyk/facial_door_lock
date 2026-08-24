@@ -21,6 +21,13 @@ public:
 
     void begin() {
         _client.setServer(_host, _port);
+        // PubSubClient::connect() blocks on the underlying socket until this
+        // timeout - left at its 15s default, an unreachable broker would
+        // stall loop() (and with it InnerController::update(), including
+        // maintenance-button hold detection) for that long on every retry.
+        // 1s keeps the worst case well under the shortest thing this shares
+        // a loop with (the 2s pairing-hold gesture).
+        _client.setSocketTimeout(1);
     }
 
     // Викликати щотік лише коли Wi-Fi підключено - неблокуючий reconnect +
