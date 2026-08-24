@@ -49,3 +49,41 @@
 
 // --- ESP-NOW (fallback transport) ---
 #define WIFI_CHANNEL 6 // INNER picks this at pairing time, broadcasts it to OUTER; both must match
+
+// --- Home Wi-Fi (OTA / monitoring / MQTT only - NOT the OUTER<->INNER Link) ---
+// This is a SEPARATE, auxiliary network connection. The lock's own auth
+// protocol (REQ/NONCE/AUTH/UNLOCK_OK) never touches this - it only ever runs
+// over UartLink/EspNowLink. See WifiManager.h/StatusServer.h/MqttReporter.h
+// for why the network surfaces below are deliberately read-only.
+//
+// CAUTION if running on ESP-NOW transport: ESP-NOW and Wi-Fi STA share the
+// same radio and MUST be on the same channel. Once WifiManager connects to
+// the home AP, ESP-NOW is forced onto whatever channel THAT AP uses - if it
+// doesn't match WIFI_CHANNEL above (and what OUTER was paired with), the
+// OUTER<->INNER link breaks silently. Pin the router to channel 6, or (better,
+// and already the documented "required commissioning setting" per WIRING.md)
+// switch Link transport to UART, which has no such conflict at all.
+#define WIFI_HOME_SSID "Xiaomi_25E9"
+#define WIFI_HOME_PASSWORD "1234567890"
+#define WIFI_STATIC_IP        192, 168, 1, 227
+#define WIFI_STATIC_GATEWAY   192, 168, 1, 1    // UNCONFIRMED - assumed from Xiaomi_25E9 being the router itself
+#define WIFI_STATIC_SUBNET    255, 255, 255, 0
+#define WIFI_RECONNECT_INTERVAL_MS 10000UL
+
+// --- OTA (ArduinoOTA) ---
+#define OTA_HOSTNAME "inner-lock"
+// CHANGE THIS before deploying - a network-reachable OTA endpoint with a
+// default password is a flashing-firmware-remotely risk. Set via Arduino
+// IDE Tools, or edit here, before relying on this in the field.
+#define OTA_PASSWORD "change-me-before-deploy"
+
+// --- Read-only status HTTP server (WebServer.h, no new dependency) ---
+#define STATUS_SERVER_PORT 80
+
+// --- MQTT (read-only status publish, no subscribe/command topic - see MqttReporter.h) ---
+#define MQTT_BROKER_HOST "192.168.1.47"
+#define MQTT_BROKER_PORT 1883
+#define MQTT_CLIENT_ID "inner-lock"
+#define MQTT_TOPIC_PREFIX "doorlock/inner"
+#define MQTT_PUBLISH_INTERVAL_MS 15000UL
+#define MQTT_RECONNECT_INTERVAL_MS 5000UL

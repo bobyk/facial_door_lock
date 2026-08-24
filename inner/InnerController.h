@@ -7,15 +7,20 @@
 #include "ToFPresenceSensor.h"
 #include "RTCModule.h"
 #include "Protocol.h"
+#include "EventLog.h"
 
 // Головна неблокуюча FSM внутрішнього блока. Єдиний авторитет, що керує
 // замком: перевіряє REQ/NONCE/AUTH від OUTER (обличчя або PIN - однаково через
 // один і той самий протокол), і незалежно відмикає без жодної авторизації при
-// спрацюванні внутрішнього TOF400C (egress-безпека).
+// спрацюванні внутрішнього TOF400C (egress-безпека). EventLog - лише вихід
+// (запис подій, читають StatusServer/MqttReporter) - жодного зворотного впливу
+// на цю FSM, тому Wi-Fi/OTA/MQTT можуть бути повністю відсутні чи відмовити
+// без жодного ефекту на авторизацію чи замок.
 class InnerController {
 public:
     InnerController(Link& link, Crypto& crypto, NvsStore& nvs, LockDriver& lock,
-                     ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin);
+                     ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin,
+                     EventLog& eventLog);
 
     void begin();
     void update(); // викликати щотік з loop()
@@ -30,6 +35,7 @@ private:
     ToFPresenceSensor& _tof;
     RTCModule& _rtc;
     uint8_t _maintButtonPin;
+    EventLog& _eventLog;
 
     State _state = State::IDLE;
     uint32_t _bootMs = 0;

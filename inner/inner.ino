@@ -6,9 +6,12 @@
 // Libraries via Library Manager (Sketch > Include Library > Manage Libraries):
 //   - RTClib (Adafruit)
 //   - VL53L1X (Pololu)
-// (mbedtls/esp_random/bootloader_random/esp_now ship with the ESP32 core, no install needed.)
+//   - PubSubClient (Nick O'Leary) - MQTT status publishing only
+// (mbedtls/esp_random/bootloader_random/esp_now/WiFi/WebServer/ArduinoOTA ship
+// with the ESP32 core, no install needed.)
 #include <Arduino.h>
 #include <Wire.h>
+#include <WiFiClient.h>
 #include "config.h"
 #include "UartLink.h"
 #include "EspNowLink.h"
@@ -18,7 +21,12 @@
 #include "LockDriver.h"
 #include "ToFPresenceSensor.h"
 #include "RTCModule.h"
+#include "EventLog.h"
 #include "InnerController.h"
+#include "WifiManager.h"
+#include "OtaUpdater.h"
+#include "StatusServer.h"
+#include "MqttReporter.h"
 
 UartLink uartLink(Serial2, LINK_RX_PIN, LINK_TX_PIN, LINK_ALIVE_TIMEOUT_MS, LINK_UART_BAUD);
 EspNowLink* espnowLink = nullptr;
@@ -29,7 +37,35 @@ NvsStore nvs;
 LockDriver lock(MOTOR_IN1_PIN, MOTOR_IN2_PIN, MOTOR_PULSE_MS);
 ToFPresenceSensor tof(TOF_PRESENCE_THRESHOLD_MM);
 RTCModule rtc;
+EventLog eventLog;
 InnerController* controller = nullptr;
+
+// --- Auxiliary home Wi-Fi (OTA / monitoring / MQTT) - entirely separate from
+// the Link/crypto path above. See config.h for the channel-conflict caveat
+// when running on ESP-NOW transport, and MqttReporter.h/StatusServer.h for
+// why these surfaces are read-only. ---
+WifiManager wifiManager(WIFI_HOME_SSID, WIFI_HOME_PASSWORD,
+                         IPAddress(WIFI_STATIC_IP), IPAddress(WIFI_STATIC_GATEWAY),
+                         IPAddress(WIFI_STATIC_SUBNET), WIFI_RECONNECT_INTERVAL_MS);
+OtaUpdater ota(OTA_HOSTNAME, OTA_PASSWORD);
+StatusServer statusServer(nvs, eventLog, STATUS_SERVER_PORT);
+WiFiClient mqttWifiClient;
+MqttReporter mqtt(mqttWifiClient, MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_CLIENT_ID,
+                   MQTT_TOPIC_PREFIX, nvs, MQTT_PUBLISH_INTERVAL_MS, MQTT_RECONNECT_INTERVAL_MS);
+uint32_t lastForwardedEventCount = 0;
+
+// Forwards any new EventLog lines to MQTT since the last check - keeps
+// MqttReporter decoupled from InnerController (it only reads EventLog/NvsStore).
+void forwardNewEventsToMqtt() {
+    uint32_t total = eventLog.totalAdded();
+    if (total == lastForwardedEventCount) return;
+    char lines[EventLog::CAPACITY][EventLog::LINE_LEN];
+    uint8_t n = eventLog.recent(lines, EventLog::CAPACITY);
+    uint32_t newCount = total - lastForwardedEventCount;
+    if (newCount > n) newCount = n; // ring buffer wrapped past what we could forward
+    for (uint8_t i = n - (uint8_t)newCount; i < n; ++i) mqtt.publishEvent(lines[i]);
+    lastForwardedEventCount = total;
+}
 
 // Дзеркало логіки в outer.ino - див. коментар там. Обидві плати мають прийти
 // до ОДНАКОВОГО вибору транспорту незалежно (UART/ESPNOW - детерміновано з
@@ -90,12 +126,30 @@ void setup() {
     nvs.begin(NVS_NAMESPACE);
 
     selectTransport();
+    if (activeLink == espnowLink) {
+        Serial.println("[WIFI] WARNING: Link transport is ESP-NOW - connecting to the home AP "
+                        "will force ESP-NOW onto that AP's channel, which may not match "
+                        "WIFI_CHANNEL/what OUTER paired with. See config.h.");
+    }
 
-    controller = new InnerController(*activeLink, crypto, nvs, lock, tof, rtc, MAINT_BUTTON_PIN);
+    controller = new InnerController(*activeLink, crypto, nvs, lock, tof, rtc, MAINT_BUTTON_PIN, eventLog);
     controller->begin();
+
+    wifiManager.begin();
+    statusServer.begin();
+    mqtt.begin();
 }
 
 void loop() {
     controller->update();
     handleSerialCommand();
+
+    // Auxiliary network stack - independent of the loop above; any failure or
+    // absence here has no effect on Link/auth/lock behaviour.
+    wifiManager.update();
+    bool wifiUp = wifiManager.isConnected();
+    ota.update(wifiUp);
+    if (wifiUp) statusServer.update();
+    mqtt.update(wifiUp);
+    forwardNewEventsToMqtt();
 }

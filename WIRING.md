@@ -228,3 +228,49 @@ failures:
   separate from INNER's own unauthenticated-request rate limiter
   (`RATE_LIMIT_MAX_FAILS`/`RATE_LIMIT_BLOCK_MS` in `inner/config.h`), which
   still applies underneath regardless of source (face or PIN).
+
+## INNER's home Wi-Fi (OTA / monitoring / MQTT) - auxiliary, read-only
+
+INNER additionally joins your home network (`inner/config.h`:
+`WIFI_HOME_SSID`/`WIFI_HOME_PASSWORD`, static IP `192.168.1.227`) for three
+things, all read-only from the network's point of view:
+
+- **OTA firmware updates** - `ArduinoOTA`, hostname `inner-lock`, password in
+  `OTA_PASSWORD` (`inner/config.h`). **Change this password before deploying**
+  - a network-reachable OTA endpoint with a placeholder password is a
+  flash-firmware-remotely risk. Push updates from Arduino IDE (Tools > Port >
+  select the network port) or `arduino-cli upload --fqbn ... -p inner-lock.local`.
+- **Status/logs over HTTP** - `GET /status` (JSON: paired, locked_out,
+  generation, counter, uptime) and `GET /logs` (last 20 event-log lines) on
+  port 80. No POST/PUT, no route that touches the lock or NVS state.
+- **MQTT for Home Assistant** - publishes to `192.168.1.47:1883` under
+  `doorlock/inner/{paired,locked_out,generation,counter,event}`, retained.
+  **Publish-only** - INNER never subscribes to anything, so there is no
+  `.../unlock` topic and no way for MQTT (or a compromised broker/Home
+  Assistant instance) to trigger the lock.
+
+**This is deliberately isolated from the lock's own security model.** The
+OUTER<->INNER auth protocol (REQ/NONCE/AUTH/UNLOCK_OK) runs only over
+`UartLink`/`EspNowLink` (see Transport section above) and never touches
+Wi-Fi, `WifiManager`, `OtaUpdater`, `StatusServer`, or `MqttReporter`. Those
+four classes only ever *read* `NvsStore` (paired/locked_out/generation/counter
+getters) and `EventLog` (recent event lines) - none of them can call
+`LockDriver::open()`. If the home network, router, MQTT broker, or Home
+Assistant is compromised, the worst case is a leaked status/log feed - not an
+unlock.
+
+**ESP-NOW channel conflict, if using that transport:** ESP-NOW and Wi-Fi STA
+share the same radio and must run on the same channel. Once `WifiManager`
+connects to the home AP, ESP-NOW gets forced onto whatever channel *that* AP
+is using - if it doesn't match `WIFI_CHANNEL` in `inner/config.h` (the
+channel OUTER paired with), the OUTER<->INNER link breaks silently. Either
+pin your router to channel 6, or - better, and already the required
+commissioning setting per the Transport section above - run `transport uart`
+on both boards, which has no such conflict since it doesn't touch the radio
+at all.
+
+**Still open:** the actual home router's gateway IP is assumed to be
+`192.168.1.1` (`WIFI_STATIC_GATEWAY` in `inner/config.h`) since the SSID
+(`Xiaomi_25E9`) suggests the AP is a Xiaomi router likely at its own default
+address - not confirmed against the real network. If DHCP/static IP doesn't
+come up, check this first.

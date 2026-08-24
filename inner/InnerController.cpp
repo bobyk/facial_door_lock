@@ -5,9 +5,10 @@
 #include <string.h>
 
 InnerController::InnerController(Link& link, Crypto& crypto, NvsStore& nvs, LockDriver& lock,
-                                  ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin)
+                                  ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin,
+                                  EventLog& eventLog)
     : _link(link), _crypto(crypto), _nvs(nvs), _lock(lock), _tof(tof), _rtc(rtc),
-      _maintButtonPin(maintButtonPin) {}
+      _maintButtonPin(maintButtonPin), _eventLog(eventLog) {}
 
 void InnerController::sendMessage(uint8_t type, const uint8_t* payload, uint8_t len) {
     uint8_t frame[LINK_FRAME_MAX];
@@ -48,10 +49,9 @@ void InnerController::enterPairingNow() {
 void InnerController::logEvent(const char* msg) {
     char ts[24];
     _rtc.formatTimestamp(ts, sizeof(ts));
-    Serial.print('[');
-    Serial.print(ts);
-    Serial.print("] ");
-    Serial.println(msg);
+    char line[EventLog::LINE_LEN];
+    snprintf(line, sizeof(line), "[%s] %s", ts, msg);
+    _eventLog.add(line); // друкує в Serial і зберігає для StatusServer/MqttReporter
 }
 
 void InnerController::update() {
