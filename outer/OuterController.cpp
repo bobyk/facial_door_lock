@@ -47,6 +47,7 @@ void OuterController::enterPairingNow() {
 
 void OuterController::update() {
     checkTamper();
+    checkPairingHold();
     sendHeartbeatIfDue();
     _face.update();
 
@@ -84,6 +85,20 @@ void OuterController::checkTamper() {
         lastResendMs = now;
     }
     _lastTamperLevel = level;
+}
+
+void OuterController::checkPairingHold() {
+    bool held = (digitalRead(_scanButtonPin) == LOW);
+    if (held && !_scanButtonHeld) {
+        _scanButtonHeld = true;
+        _scanButtonHoldStartMs = millis();
+    } else if (!held) {
+        _scanButtonHeld = false;
+    } else if (_scanButtonHeld && _state != State::PAIRING
+               && millis() - _scanButtonHoldStartMs >= PAIRING_HOLD_MS) {
+        enterPairingNow();
+        _scanButtonHeld = false; // не спрацьовувати повторно, поки кнопку не відпустять
+    }
 }
 
 void OuterController::sendHeartbeatIfDue() {

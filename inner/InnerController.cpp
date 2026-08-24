@@ -33,24 +33,16 @@ void InnerController::begin() {
     Serial.print(_link.name());
     Serial.println(" transport");
 
-    // Перевірка "кнопка утримана на старті" - одноразово, до входу в loop().
-    bool held = (digitalRead(_maintButtonPin) == LOW);
-    if (held) {
-        uint32_t start = millis();
-        while (digitalRead(_maintButtonPin) == LOW && millis() - start < PAIRING_BOOT_HOLD_MS) {}
-        held = (digitalRead(_maintButtonPin) == LOW) && (millis() - start >= PAIRING_BOOT_HOLD_MS);
-    }
-    if (held) {
-        logEvent("boot button held - entering pairing window, generating new key");
-        _crypto.randomBytes(_pairingKey, KEY_LEN);
-        _pairingChannel = WIFI_CHANNEL; // INNER обирає канал ESP-NOW для пари, повідомляє його OUTER
-        _pairingDeadline = millis() + PAIRING_WINDOW_MS;
-        _state = State::PAIRING;
-        return;
-    }
-
     _state = _nvs.lockedOut() ? State::LOCKED_OUT : State::IDLE;
     if (_state == State::LOCKED_OUT) logEvent("boot: tamper lockout persisted from previous session");
+}
+
+void InnerController::enterPairingNow() {
+    logEvent("maintenance button held 2s - entering pairing window, generating new key");
+    _crypto.randomBytes(_pairingKey, KEY_LEN);
+    _pairingChannel = WIFI_CHANNEL; // INNER обирає канал ESP-NOW для пари, повідомляє його OUTER
+    _pairingDeadline = millis() + PAIRING_WINDOW_MS;
+    _state = State::PAIRING;
 }
 
 void InnerController::logEvent(const char* msg) {
@@ -125,6 +117,10 @@ void InnerController::checkMaintButton() {
         _nvs.setLockedOut(false);
         _state = State::IDLE;
         _maintHeld = false; // не спрацьовувати повторно, поки кнопку не відпустять
+    } else if (_maintHeld && _state != State::LOCKED_OUT && _state != State::PAIRING
+               && millis() - _maintHoldStartMs >= PAIRING_HOLD_MS) {
+        enterPairingNow();
+        _maintHeld = false;
     }
 }
 

@@ -28,7 +28,9 @@
 #define MOTOR_IN2_PIN 4
 #define MOTOR_PULSE_MS 500
 
-// --- Maintenance button: held at boot = pairing window; held 3s at runtime = clear tamper lockout ---
+// --- Maintenance button: held 2s at runtime = pairing window; held 3s while
+// LOCKED_OUT = clear tamper lockout. No boot-time hold needed (checked live,
+// no reboot required) - simpler and more reliable than timing a boot-hold. ---
 #define MAINT_BUTTON_PIN 5
 
 // --- NVS namespace ---
@@ -40,7 +42,7 @@
 #define RATE_LIMIT_BLOCK_MS (5UL * 60 * 1000)
 #define TAMPER_CLEAR_HOLD_MS 3000UL
 #define PAIRING_WINDOW_MS 30000UL
-#define PAIRING_BOOT_HOLD_MS 50UL
+#define PAIRING_HOLD_MS 2000UL         // hold maintenance button this long (not locked out) to pair
 #define HEARTBEAT_MISSING_MS 10000UL   // OUTER heartbeat missing this long -> suspicious log, no lockout
 #define TOF_PRESENCE_THRESHOLD_MM 1000 // internal ToF unlock-without-auth threshold
 #define LINK_ALIVE_TIMEOUT_MS 10000UL  // Link::isAlive() threshold, either transport

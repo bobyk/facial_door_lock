@@ -78,6 +78,7 @@
 #define UNLOCK_ACK_TIMEOUT_MS 2000UL       // waiting for UNLOCK_OK after AUTH
 #define HEARTBEAT_INTERVAL_MS 2000UL
 #define PAIRING_WINDOW_MS 30000UL
+#define PAIRING_HOLD_MS 2000UL             // hold SCAN_BUTTON_PIN this long (at runtime) to pair
 #define LINK_ALIVE_TIMEOUT_MS 10000UL      // Link::isAlive() threshold, either transport
 
 // --- Behaviour ---

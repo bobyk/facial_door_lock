@@ -22,11 +22,13 @@ public:
 
     void begin(); // ініціалізує підмодулі
     void update(); // викликати щотік з loop()
-    // Викликати з serial-команди "pair". НЕ через утримання кнопки при
-    // старті (як на INNER) - GPIO0 тут одночасно є BOOT-strapping піном
-    // ESP32: якщо тримати його в LOW саме в момент reset, чіп йде в
-    // download-режим і взагалі не запускає прошивку, тож "тримати при
-    // старті" ніколи не спрацював би надійно на цьому піні.
+    // Викликати з serial-команди "pair" АБО автоматично при 2с утриманні
+    // SCAN_BUTTON_PIN під час роботи (checkPairingHold). НЕ через утримання
+    // кнопки САМЕ ПРИ СТАРТІ - GPIO0 одночасно є BOOT-strapping піном ESP32:
+    // якщо тримати його в LOW у момент reset, чіп йде в download-режим і
+    // взагалі не запускає прошивку. Але після старту, поки застосунок вже
+    // працює, GPIO0 - звичайний GPIO без жодних обмежень, тож утримання під
+    // час роботи (не при reset) безпечне і не конфліктує зі strapping.
     void enterPairingNow();
 
 private:
@@ -69,6 +71,9 @@ private:
     int _lastTamperLevel = LOW; // LOW = кришка закрита (NC-контакт замкнений на GND)
     uint32_t _lastHeartbeatMs = 0;
 
+    bool _scanButtonHeld = false;
+    uint32_t _scanButtonHoldStartMs = 0;
+
     void tickPairing();
     void tickIdle();
     void tickFaceScanning();
@@ -77,6 +82,7 @@ private:
     void tickPostUnlockReset();
 
     void checkTamper();
+    void checkPairingHold(); // 2с утримання SCAN_BUTTON_PIN (поза PAIRING) - без reboot
     void sendHeartbeatIfDue();
     void handleKeypad();      // клавіатура активна в будь-якому стані, крім PAIRING (в якої свій режим введення)
     void registerPinFailure();

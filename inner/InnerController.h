@@ -61,6 +61,10 @@ private:
     void checkMaintButton();
     void checkHeartbeat();
     void logEvent(const char* msg);
+    // 2с утримання maintenance-кнопки (поза LOCKED_OUT/PAIRING) - без reboot,
+    // на відміну від колишнього "тримати при старті" (яке важко синхронізувати
+    // з фізичним натисканням reset).
+    void enterPairingNow();
 
     void sendMessage(uint8_t type, const uint8_t* payload, uint8_t len);
     bool recvMessage(uint8_t& type, uint8_t* payload, uint8_t& len, uint8_t maxLen);

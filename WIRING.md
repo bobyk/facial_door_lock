@@ -52,7 +52,7 @@ the same way the I2C pins were.
 
 | Signal | Pin | Notes |
 |---|---|---|
-| Scan button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is fine (standard pattern), but it can't be held-at-boot for anything - GPIO0 is also the bootloader-entry strapping pin, so holding it low across a reset enters USB download mode instead of running the app. Press (at runtime) = scan trigger. Pairing is entered via the `pair` serial command instead - see "Pairing procedure" below. |
+| Scan / pairing button | GPIO0 | Onboard `BUTTON`, shares BOOT. Reusing it as a runtime input after boot is fine (standard pattern), but it can't be held-at-boot for anything - GPIO0 is also the bootloader-entry strapping pin, so holding it low across a reset enters USB download mode instead of running the app. Tap (at runtime) = scan trigger. Hold 2s (at runtime, not at boot) = enter pairing window - see "Pairing procedure" below. Also reachable via the `pair` serial command. |
 | Status LED | GPIO47 | Per the board's pin chart (labelled `RGB_LED`) - the software pin file claims GPIO42 instead, but going with the chart since the software file was already wrong once on this board. Single WS2812-compatible pixel (FastLED, 1 LED - not a strip). Still worth confirming it actually lights up. |
 | I2C SDA (PCF8574 keypad) | GPIO8 | **Confirmed on real hardware.** Software file's claimed "labelled I2C header" (GPIO47/48) didn't respond; the keypad only worked once moved here. |
 | I2C SCL (PCF8574 keypad) | GPIO9 | **Confirmed on real hardware.** PCF8574 address 0x20. The keypad ribbon's row/column order didn't match a naive "P0-P3=rows, P4-P6=columns" assumption either - confirmed working end to end with `ROW_BIT={5,0,1,3}`, `COL_BIT={4,6,7}` in `KeypadPCF8574.h`. |
@@ -86,7 +86,7 @@ once INNER is wired up - don't trust this row until then.
 | Inter-board Link TX | GPIO2 | Serial2 |
 | Motor driver IN1 (lock) | GPIO3 | Separate external 2-channel H-bridge, impulse control - NOT the onboard motor driver |
 | Motor driver IN2 (lock) | GPIO4 | |
-| Maintenance button | GPIO5 | External button, INPUT_PULLUP. Held at boot = pairing window / clears paired flag. Held 3s at runtime = clears tamper LOCKED_OUT. |
+| Maintenance button | GPIO5 | External button, INPUT_PULLUP. Held 2s at runtime (not LOCKED_OUT) = enter pairing window. Held 3s at runtime while LOCKED_OUT = clears tamper lockout instead. No boot-time hold needed - checked live, no reboot required. |
 
 **Hardware warning (not solved in software):** the lock motor is an
 inductive load sharing the INNER enclosure with the MCU. The external H-bridge
@@ -163,36 +163,38 @@ flash peak on OUTER.
 
 ## Pairing procedure
 
-1. Power off both boards.
-2. Power on **INNER** while physically holding its external maintenance
-   button (GPIO5). Only needs to be held through boot (~50 ms debounce) -
-   release once the board is up. This starts its 30 s pairing window.
-3. On **OUTER**, over its USB serial console, send the command `pair`.
-   OUTER's onboard BUTTON is GPIO0, which doubles as the ESP32's own
-   bootloader-entry strapping pin - holding it low across a reset puts the
-   chip into USB download mode instead of running the firmware at all, so
-   unlike INNER it can't use a "hold at boot" trigger. The serial command is
-   the same trust model (still requires a physical/USB connection to the
-   board), just without fighting the chip's own boot strapping. This can be
-   sent any time while INNER's window is open - no reboot needed on OUTER.
-4. Both boards are now in a 30 s pairing window, over whichever transport was
-   already selected at boot (see above). INNER generates a new random 32-byte
-   key plus its own Wi-Fi channel choice, and repeatedly broadcasts
+Both boards enter pairing the same way - no reboot needed on either:
+
+1. On **INNER**, hold the maintenance button (GPIO5) for **2 seconds** while
+   it's running normally (not LOCKED_OUT). This starts its 30 s pairing
+   window.
+2. On **OUTER**, hold the scan button (GPIO0) for **2 seconds** while it's
+   running normally - or, equivalently, send `pair` over its USB serial
+   console. (GPIO0 can't use a boot-time hold like older revisions of this
+   doc suggested - it's also the ESP32's bootloader-entry strapping pin, so
+   holding it low across a reset enters USB download mode instead of running
+   the firmware at all. A runtime hold, after the app is already running,
+   doesn't have this problem - the strapping check only happens once, right
+   at reset.)
+3. Do steps 1-2 in either order, any time within a few seconds of each other
+   - both boards are now in a 30 s pairing window, over whichever transport
+   was already selected at boot (see above). INNER generates a new random
+   32-byte key plus its own Wi-Fi channel choice, and repeatedly broadcasts
    key + its own STA MAC + that channel. OUTER stores the first valid bundle
    it receives (so it can fall back to ESP-NOW later even if this pairing
    session ran over UART) and immediately replies with its own STA MAC.
    INNER finalizes (sets `paired=true`, resets counter/generation to 0) only
    after receiving that reply - if it never arrives, nothing is persisted on
    either side and the previous key (if any) stays in effect.
-5. Optional, same window: on OUTER's keypad, enter a 4-digit PIN and press
+4. Optional, same window: on OUTER's keypad, enter a 4-digit PIN and press
    `#`. Its SHA-256 hash is sent to INNER and stored, enabling the PIN
    fallback path (used after 3 failed face-recognition attempts, or usable
    directly - see "Keypad behaviour" below).
-6. If the window closes without a completed exchange, repeat from step 1.
-7. Re-pairing later (e.g. replacing a board) uses the same procedure - the
+5. If the window closes without a completed exchange, repeat from step 1.
+6. Re-pairing later (e.g. replacing a board) uses the same procedure - the
    `paired` flag never reopens on its own; only deliberate physical/USB
-   access to both boards (INNER's boot-time button hold, OUTER's `pair`
-   serial command) can trigger it again.
+   access to both boards (the button hold, or OUTER's `pair` serial command)
+   can trigger it again.
 
 **Not covered by this pairing flow:** enrolling faces into the FRM1213
 itself. That's a separate, module-specific operation (not implemented here -
