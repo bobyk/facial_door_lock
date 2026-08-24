@@ -6,9 +6,9 @@
 
 InnerController::InnerController(Link& link, Crypto& crypto, NvsStore& nvs, LockDriver& lock,
                                   ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin,
-                                  EventLog& eventLog)
+                                  EventLog& eventLog, LedStrip& led)
     : _link(link), _crypto(crypto), _nvs(nvs), _lock(lock), _tof(tof), _rtc(rtc),
-      _maintButtonPin(maintButtonPin), _eventLog(eventLog) {}
+      _maintButtonPin(maintButtonPin), _eventLog(eventLog), _led(led) {}
 
 void InnerController::sendMessage(uint8_t type, const uint8_t* payload, uint8_t len) {
     uint8_t frame[LINK_FRAME_MAX];
@@ -29,6 +29,7 @@ void InnerController::begin() {
     _lock.begin();
     _tof.begin();
     _rtc.begin();
+    _led.begin();
     _bootMs = millis();
     Serial.print("[LINK] using ");
     Serial.print(_link.name());
@@ -44,6 +45,7 @@ void InnerController::enterPairingNow() {
     _pairingChannel = WIFI_CHANNEL; // INNER обирає канал ESP-NOW для пари, повідомляє його OUTER
     _pairingDeadline = millis() + PAIRING_WINDOW_MS;
     _state = State::PAIRING;
+    _led.setBlinkRed();
 }
 
 void InnerController::logEvent(const char* msg) {
@@ -58,6 +60,7 @@ void InnerController::update() {
     checkHeartbeat();
     checkMaintButton();
     checkTof(); // egress unlock - unconditional, checked every tick regardless of state
+    _led.update();
 
     uint8_t type, payload[LINK_MAX_PAYLOAD], len;
     bool got = recvMessage(type, payload, len, sizeof(payload));
@@ -140,6 +143,7 @@ void InnerController::handleTamper() {
     if (_state != State::LOCKED_OUT) logEvent("TAMPER received from OUTER - entering LOCKED_OUT");
     _nvs.setLockedOut(true);
     _state = State::LOCKED_OUT;
+    _led.setOff();
 }
 
 void InnerController::handleReq() {
@@ -264,6 +268,7 @@ void InnerController::tickPairing(bool got, uint8_t type, const uint8_t* payload
         _consecutiveFails = 0;
         _rateLimitBlockedUntilMs = 0;
         _state = State::IDLE;
+        _led.setOff();
         return;
     }
     if (got && type == MSG_PAIR_PIN && len == 32) {
@@ -282,6 +287,7 @@ void InnerController::tickPairing(bool got, uint8_t type, const uint8_t* payload
 
     if (now >= _pairingDeadline) {
         logEvent("pairing window closed without ack from OUTER");
+        _led.setOff();
         _state = _nvs.lockedOut() ? State::LOCKED_OUT : State::IDLE;
     }
 }

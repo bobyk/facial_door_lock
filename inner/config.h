@@ -12,10 +12,18 @@
 // Free general-purpose pins used below are GPIO1-10 ("A0-A9" on the board's
 // own silkscreen) plus the board's labelled I2C header (GPIO47/48).
 
-// --- I2C for DS3231 RTC and VL53L1X (TOF400C) - board's labelled I2C header ---
-#define I2C_SDA_PIN 47
-#define I2C_SCL_PIN 48
+// --- I2C for DS3231 RTC and VL53L1X (TOF400C) ---
+// NOT the board's "labelled I2C header" (GPIO47/48) - that turned out wrong
+// on OUTER (same board model): the software pin file claims it, but the real
+// I2C only responded once moved to GPIO8/9, and GPIO47 is actually the fixed
+// onboard RGB LED. Going with the same confirmed pins here rather than
+// repeating the same mistake - still worth an I2C scan to confirm once wired.
+#define I2C_SDA_PIN 8
+#define I2C_SCL_PIN 9
 #define TOF_ADDR 0x29 // VL53L1X default address
+
+// --- Status LED (onboard RGB_LED, WS2812-compatible, single pixel) ---
+#define LED_DATA_PIN 47
 
 // --- Inter-board Link UART (Serial2) - free general-purpose pins ---
 #define LINK_RX_PIN 1

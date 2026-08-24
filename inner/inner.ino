@@ -7,6 +7,7 @@
 //   - RTClib (Adafruit)
 //   - VL53L1X (Pololu)
 //   - PubSubClient (Nick O'Leary) - MQTT status publishing only
+//   - FastLED - onboard status LED (pairing indicator)
 // (mbedtls/esp_random/bootloader_random/esp_now/WiFi/WebServer/ArduinoOTA ship
 // with the ESP32 core, no install needed.)
 #include <Arduino.h>
@@ -22,6 +23,7 @@
 #include "ToFPresenceSensor.h"
 #include "RTCModule.h"
 #include "EventLog.h"
+#include "LedStrip.h"
 #include "InnerController.h"
 #include "WifiManager.h"
 #include "OtaUpdater.h"
@@ -38,6 +40,7 @@ LockDriver lock(MOTOR_IN1_PIN, MOTOR_IN2_PIN, MOTOR_PULSE_MS);
 ToFPresenceSensor tof(TOF_PRESENCE_THRESHOLD_MM);
 RTCModule rtc;
 EventLog eventLog;
+LedStrip led;
 InnerController* controller = nullptr;
 
 // --- Auxiliary home Wi-Fi (OTA / monitoring / MQTT) - entirely separate from
@@ -128,7 +131,7 @@ void setup() {
 
     selectTransport();
 
-    controller = new InnerController(*activeLink, crypto, nvs, lock, tof, rtc, MAINT_BUTTON_PIN, eventLog);
+    controller = new InnerController(*activeLink, crypto, nvs, lock, tof, rtc, MAINT_BUTTON_PIN, eventLog, led);
     controller->begin();
 
     // ESP-NOW and Wi-Fi STA share one radio and must sit on the same channel.

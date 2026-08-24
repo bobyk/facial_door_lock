@@ -8,6 +8,7 @@
 #include "RTCModule.h"
 #include "Protocol.h"
 #include "EventLog.h"
+#include "LedStrip.h"
 
 // Головна неблокуюча FSM внутрішнього блока. Єдиний авторитет, що керує
 // замком: перевіряє REQ/NONCE/AUTH від OUTER (обличчя або PIN - однаково через
@@ -20,7 +21,7 @@ class InnerController {
 public:
     InnerController(Link& link, Crypto& crypto, NvsStore& nvs, LockDriver& lock,
                      ToFPresenceSensor& tof, RTCModule& rtc, uint8_t maintButtonPin,
-                     EventLog& eventLog);
+                     EventLog& eventLog, LedStrip& led);
 
     void begin();
     void update(); // викликати щотік з loop()
@@ -36,6 +37,7 @@ private:
     RTCModule& _rtc;
     uint8_t _maintButtonPin;
     EventLog& _eventLog;
+    LedStrip& _led;
 
     State _state = State::IDLE;
     uint32_t _bootMs = 0;

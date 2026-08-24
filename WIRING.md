@@ -69,19 +69,22 @@ the same way the I2C pins were.
 Onboard, deliberately not used: the built-in dual motor driver (GPIO18/17,
 GPIO21/33) - the lock actuator uses its own separate external H-bridge
 instead (see `inner/LockDriver.h`), so those onboard channels are left
-unconfigured/unused. Also unused: the onboard button and RGB LED (INNER has
-no user-facing UI in this design).
+unconfigured/unused. Also unused: the onboard button (INNER has no
+face/keypad UI in this design - only the status LED below is used).
 
-**Same caution as OUTER applies here** - INNER's I2C pins below are still
-the software file's claimed GPIO47/48, unverified against real hardware.
-Given OUTER's identical claim turned out wrong on the same board model,
-expect INNER's to need the same empirical correction (I2C scan + retest)
-once INNER is wired up - don't trust this row until then.
+**I2C pins below now match OUTER's confirmed real layout (GPIO8/9), not the
+software file's claimed GPIO47/48** - moved proactively before INNER's
+RTC/ToF were ever wired up, since OUTER's identical claim (same board model)
+turned out wrong, and GPIO47 is actually the fixed onboard RGB LED, not part
+of a usable I2C header. Still worth an I2C bus scan to confirm once your
+RTC/ToF module is actually connected - don't trust this row as gospel until
+then, just as a much safer starting point than the old GPIO47/48 claim.
 
 | Signal | Pin | Notes |
 |---|---|---|
-| I2C SDA (DS3231 + VL53L1X) | GPIO47 | Onboard labelled I2C header. Same bus, different addresses (0x68 / 0x29) - no conflict |
-| I2C SCL (DS3231 + VL53L1X) | GPIO48 | |
+| I2C SDA (DS3231 + VL53L1X) | GPIO8 | Not yet confirmed on real INNER hardware - see caution above. Same bus, different addresses (0x68 / 0x29) - no conflict |
+| I2C SCL (DS3231 + VL53L1X) | GPIO9 | |
+| Status LED | GPIO47 | Onboard `RGB_LED`, same fixed pixel as OUTER's. Single WS2812-compatible pixel (FastLED, 1 LED). Only indication used: blinks red while in the pairing window. |
 | Inter-board Link RX | GPIO1 | Serial2, 115200 8N1, free general-purpose pin |
 | Inter-board Link TX | GPIO2 | Serial2 |
 | Motor driver IN1 (lock) | GPIO3 | Separate external 2-channel H-bridge, impulse control - NOT the onboard motor driver |
@@ -167,7 +170,8 @@ Both boards enter pairing the same way - no reboot needed on either:
 
 1. On **INNER**, hold the maintenance button (GPIO5) for **2 seconds** while
    it's running normally (not LOCKED_OUT). This starts its 30 s pairing
-   window.
+   window - its status LED (GPIO47) starts blinking red for the duration,
+   confirming the window is open without needing the serial console.
 2. On **OUTER**, hold the scan button (GPIO0) for **2 seconds** while it's
    running normally - or, equivalently, send `pair` over its USB serial
    console. (GPIO0 can't use a boot-time hold like older revisions of this

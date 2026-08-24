@@ -10,3 +10,4 @@ profiles:
       - RTClib (2.1.4)
       - Adafruit BusIO (1.17.4)
       - PubSubClient (2.8)
+      - FastLED (3.10.5)
